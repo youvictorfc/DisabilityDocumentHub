@@ -4,6 +4,7 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from flask_login import LoginManager
+from config import Config
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -17,15 +18,18 @@ db = SQLAlchemy(model_class=Base)
 
 # Create Flask app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET")
+app.secret_key = os.environ.get("SESSION_SECRET", Config.SECRET_KEY)
 
-# Configure database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///minto_disability.db")
+# Load configuration from Config class
+app.config.from_object(Config)
+
+# Configure database engine options
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
 }
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Initialize SQLAlchemy with app
 db.init_app(app)
 
 # Configure login manager

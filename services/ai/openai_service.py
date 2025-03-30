@@ -4,9 +4,20 @@ import logging
 from openai import OpenAI
 from flask import current_app
 
-# Initialize OpenAI client
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-openai = OpenAI(api_key=OPENAI_API_KEY)
+# Initialize OpenAI client - will be set with the actual API key in the functions
+openai = None
+
+def get_openai_client():
+    """
+    Get or initialize the OpenAI client with the current API key from the app config
+    """
+    global openai
+    if openai is None:
+        api_key = current_app.config.get('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable.")
+        openai = OpenAI(api_key=api_key)
+    return openai
 
 def parse_form_document(file_path):
     """
@@ -26,9 +37,12 @@ def parse_form_document(file_path):
                 # Text file
                 file_content = file.read().decode('utf-8')
         
+        # Get the OpenAI client
+        client = get_openai_client()
+        
         # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
         # do not change this unless explicitly requested by the user
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {
@@ -63,9 +77,12 @@ def generate_form_questions(form_structure):
     Generate a step-by-step question flow from form structure.
     """
     try:
+        # Get the OpenAI client
+        client = get_openai_client()
+        
         # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
         # do not change this unless explicitly requested by the user
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {
@@ -97,7 +114,10 @@ def generate_embeddings(text):
     Generate embeddings for a given text using OpenAI's embedding model.
     """
     try:
-        response = openai.embeddings.create(
+        # Get the OpenAI client
+        client = get_openai_client()
+        
+        response = client.embeddings.create(
             model="text-embedding-ada-002",
             input=text
         )
@@ -114,9 +134,12 @@ def generate_answer_with_context(question, contexts):
     try:
         context_text = "\n\n".join(contexts)
         
+        # Get the OpenAI client
+        client = get_openai_client()
+        
         # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
         # do not change this unless explicitly requested by the user
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {

@@ -12,9 +12,15 @@ def extract_text_from_file(file_path):
     try:
         # File type handling
         if file_path.endswith('.pdf'):
-            # This is a placeholder - in a real app, you'd use PyPDF2 or similar
-            # For demonstration, just return some text
-            return "This is sample content from a PDF file for demonstration purposes."
+            import PyPDF2
+            
+            text = ""
+            with open(file_path, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                for page_num in range(len(pdf_reader.pages)):
+                    page = pdf_reader.pages[page_num]
+                    text += page.extract_text() + "\n\n"
+            return text
             
         elif file_path.endswith('.docx'):
             # This is a placeholder - in a real app, you'd use python-docx
