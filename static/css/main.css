@@ -1,0 +1,188 @@
+/* Custom styles for Minto Disability Services Document Hub */
+
+/* Custom spacing for main content */
+.main-content {
+    padding: 2rem 0;
+    min-height: calc(100vh - 200px);
+}
+
+/* Card customization */
+.card {
+    margin-bottom: 1.5rem;
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+/* Form styling */
+.form-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.form-navigation {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2rem;
+}
+
+/* Question display */
+.question-container {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    background-color: rgba(var(--bs-secondary-rgb), 0.1);
+}
+
+.question-title {
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+/* Progress indicator */
+.progress {
+    height: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+/* Policy assistant chat */
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 60vh;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    background-color: rgba(var(--bs-dark-rgb), 0.05);
+}
+
+.chat-input {
+    display: flex;
+    padding: 1rem;
+    background-color: rgba(var(--bs-dark-rgb), 0.1);
+}
+
+.chat-input input {
+    flex-grow: 1;
+    margin-right: 0.5rem;
+}
+
+/* Chat message bubbles */
+.message {
+    margin-bottom: 1rem;
+    max-width: 80%;
+}
+
+.message-user {
+    align-self: flex-end;
+    background-color: var(--bs-primary);
+    color: white;
+    border-radius: 1rem 1rem 0 1rem;
+    padding: 0.75rem 1rem;
+    margin-left: auto;
+}
+
+.message-assistant {
+    align-self: flex-start;
+    background-color: var(--bs-secondary);
+    color: white;
+    border-radius: 1rem 1rem 1rem 0;
+    padding: 0.75rem 1rem;
+}
+
+.message-sources {
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    color: var(--bs-gray-600);
+}
+
+/* Loading spinner */
+.loading-spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 0.2rem solid rgba(var(--bs-primary-rgb), 0.25);
+    border-right-color: var(--bs-primary);
+    border-radius: 50%;
+    animation: spinner 0.75s linear infinite;
+}
+
+@keyframes spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Navigation indicator for forms */
+.form-stepper {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+}
+
+.step {
+    flex: 1;
+    text-align: center;
+    padding: 0.5rem;
+    position: relative;
+}
+
+.step::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -50%;
+    width: 100%;
+    height: 2px;
+    background-color: var(--bs-gray-300);
+    z-index: 0;
+}
+
+.step:last-child::after {
+    display: none;
+}
+
+.step-number {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background-color: var(--bs-gray-300);
+    color: var(--bs-dark);
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+.step.active .step-number {
+    background-color: var(--bs-primary);
+    color: white;
+}
+
+.step.completed .step-number {
+    background-color: var(--bs-success);
+    color: white;
+}
+
+/* Accessibility improvements */
+.form-label {
+    font-weight: 600;
+}
+
+.required-indicator {
+    color: var(--bs-danger);
+    margin-left: 0.25rem;
+}

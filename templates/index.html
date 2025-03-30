@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block title %}Minto Disability Services - Document Hub{% endblock %}
+
+{% block content %}
+<div class="px-4 py-5 my-5 text-center">
+    <h1 class="display-5 fw-bold mb-4">Minto Disability Services Document Hub</h1>
+    <div class="col-lg-8 mx-auto">
+        <p class="lead mb-4">
+            Welcome to our document management system. This platform helps you complete forms
+            and access policy information through our AI-powered assistant.
+        </p>
+        
+        {% if current_user.is_authenticated %}
+        <div class="d-grid gap-3 d-sm-flex justify-content-sm-center mt-5">
+            <a href="{{ url_for('form.form_list') }}" class="btn btn-primary btn-lg px-4 gap-3">
+                <i class="bi bi-file-earmark-text me-2"></i>View Forms
+            </a>
+            <a href="{{ url_for('policy.policy_assistant') }}" class="btn btn-outline-secondary btn-lg px-4">
+                <i class="bi bi-chat-text me-2"></i>Policy Assistant
+            </a>
+        </div>
+        {% else %}
+        <div class="d-grid gap-3 d-sm-flex justify-content-sm-center mt-5">
+            <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg px-4 gap-3">
+                <i class="bi bi-box-arrow-in-right me-2"></i>Login
+            </a>
+            <a href="{{ url_for('auth.register') }}" class="btn btn-outline-secondary btn-lg px-4">
+                <i class="bi bi-person-plus me-2"></i>Register
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="container">
+    <div class="row mb-5">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h3 class="card-title">
+                        <i class="bi bi-file-earmark-text text-primary me-2"></i>
+                        Interactive Form Completion
+                    </h3>
+                    <ul class="list-group list-group-flush mb-3">
+                        <li class="list-group-item">Search and select from available forms</li>
+                        <li class="list-group-item">Step-by-step guided form filling</li>
+                        <li class="list-group-item">Save your progress for later completion</li>
+                        <li class="list-group-item">Email submission of completed forms</li>
+                    </ul>
+                    {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('form.form_list') }}" class="btn btn-outline-primary">
+                        View Forms
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h3 class="card-title">
+                        <i class="bi bi-chat-text text-primary me-2"></i>
+                        Policy & Procedure Assistant
+                    </h3>
+                    <ul class="list-group list-group-flush mb-3">
+                        <li class="list-group-item">Natural language policy questions</li>
+                        <li class="list-group-item">AI-powered document search</li>
+                        <li class="list-group-item">Intelligent answers with source citations</li>
+                        <li class="list-group-item">Access to all uploaded policy documents</li>
+                    </ul>
+                    {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('policy.policy_assistant') }}" class="btn btn-outline-primary">
+                        Ask Questions
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

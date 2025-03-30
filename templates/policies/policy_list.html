@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}Policies - Minto Disability Services{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1>Policies & Procedures</h1>
+        <p class="lead">Browse and search our policy documents</p>
+    </div>
+    {% if current_user.is_admin %}
+    <div class="col-auto">
+        <a href="{{ url_for('policy.upload_policy') }}" class="btn btn-primary">
+            <i class="bi bi-upload me-2"></i>Upload New Policy
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Search bar -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="text" id="policy-search" class="form-control" placeholder="Search policies...">
+            <button class="btn btn-outline-secondary" type="button">
+                <i class="bi bi-search"></i>
+            </button>
+        </div>
+    </div>
+    <div class="col-md-6 text-md-end mt-3 mt-md-0">
+        <a href="{{ url_for('policy.policy_assistant') }}" class="btn btn-success">
+            <i class="bi bi-chat-text me-2"></i>Ask Policy Assistant
+        </a>
+    </div>
+</div>
+
+<!-- Policy documents section -->
+<div class="mb-4">
+    {% if documents %}
+    <div class="row row-cols-1 row-cols-md-2 g-4">
+        {% for document in documents %}
+        <div class="col policy-card" data-doc-title="{{ document.title }}" data-doc-type="{{ document.document_type }}">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h5 class="card-title">{{ document.title }}</h5>
+                        <span class="badge bg-info">{{ document.document_type }}</span>
+                    </div>
+                    <p class="card-text text-muted small">
+                        Added: {{ document.created_at.strftime('%Y-%m-%d') }}
+                    </p>
+                </div>
+                <div class="card-footer bg-transparent border-0 d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" 
+                            onclick="window.location.href='{{ url_for('policy.policy_assistant') }}?query=Tell me about {{ document.title }}'">
+                        <i class="bi bi-question-circle me-1"></i>Ask About
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>No policy documents available yet.
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('policy.upload_policy') }}" class="alert-link">Upload a policy document</a> to get started.
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('policy-search');
+        const policyCards = document.querySelectorAll('.policy-card');
+        
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            
+            policyCards.forEach(card => {
+                const title = card.dataset.docTitle.toLowerCase();
+                const type = card.dataset.docType.toLowerCase();
+                
+                if (title.includes(searchTerm) || type.includes(searchTerm)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

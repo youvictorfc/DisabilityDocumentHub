@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}Policy Assistant - Minto Disability Services{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1>Policy Assistant</h1>
+        <p class="lead">Ask questions about our policies and procedures</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <!-- Chat interface -->
+        <div id="chat-container" class="chat-container">
+            <div id="chat-messages" class="chat-messages">
+                <!-- Messages will be added here by JavaScript -->
+            </div>
+            
+            <form id="chat-form" class="chat-input">
+                <input type="text" id="question-input" class="form-control" placeholder="Ask a question about our policies..." autofocus>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-send"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Suggested Questions</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item suggested-question">What is our sick leave policy?</li>
+                    <li class="list-group-item suggested-question">How do I report an incident?</li>
+                    <li class="list-group-item suggested-question">What are the emergency evacuation procedures?</li>
+                    <li class="list-group-item suggested-question">What training is required for new staff?</li>
+                    <li class="list-group-item suggested-question">What is the client confidentiality policy?</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">About Policy Assistant</h5>
+            </div>
+            <div class="card-body">
+                <p>The Policy Assistant helps you find information in our policy and procedure documents.</p>
+                <ul>
+                    <li>Ask questions in natural language</li>
+                    <li>Get accurate answers with source citations</li>
+                    <li>Find specific policy information quickly</li>
+                </ul>
+                <p class="mb-0 small text-muted">This tool searches across all uploaded policy documents in the system.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/policy.js') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle suggested questions
+        const suggestedQuestions = document.querySelectorAll('.suggested-question');
+        const questionInput = document.getElementById('question-input');
+        const chatForm = document.getElementById('chat-form');
+        
+        suggestedQuestions.forEach(question => {
+            question.addEventListener('click', function() {
+                questionInput.value = this.textContent;
+                questionInput.focus();
+                
+                // Optionally submit the question immediately
+                // chatForm.dispatchEvent(new Event('submit'));
+            });
+        });
+        
+        // Check URL parameters for a query
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryParam = urlParams.get('query');
+        
+        if (queryParam) {
+            questionInput.value = queryParam;
+            setTimeout(() => {
+                chatForm.dispatchEvent(new Event('submit'));
+            }, 500);
+        }
+    });
+</script>
+{% endblock %}

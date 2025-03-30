@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Policy - Minto Disability Services{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('policy.policy_list') }}">Policies</a></li>
+                <li class="breadcrumb-item active">Upload Policy</li>
+            </ol>
+        </nav>
+        
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0 h5">Upload Policy Document</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Document Title</label>
+                        <input type="text" class="form-control" id="title" name="title" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="document_type" class="form-label">Document Type</label>
+                        <select class="form-select" id="document_type" name="document_type" required>
+                            <option value="" selected disabled>Select document type</option>
+                            <option value="Policy">Policy</option>
+                            <option value="Procedure">Procedure</option>
+                            <option value="Guideline">Guideline</option>
+                            <option value="Manual">Manual</option>
+                            <option value="FAQ">FAQ</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="document_file" class="form-label">Document File</label>
+                        <input class="form-control" type="file" id="document_file" name="document_file" required>
+                        <div class="form-text">Upload a PDF, Word document (.doc, .docx), or text file (.txt).</div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        The system will process this document to make it searchable by the Policy Assistant. This may take a moment.
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('policy.policy_list') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-1"></i>Back to Policies
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload me-1"></i>Upload Document
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

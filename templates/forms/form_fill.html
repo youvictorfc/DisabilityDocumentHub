@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ form.title }} - Minto Disability Services{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('form.form_list') }}">Forms</a></li>
+            <li class="breadcrumb-item active">{{ form.title }}</li>
+        </ol>
+    </nav>
+    
+    <h1 class="mb-2">{{ form.title }}</h1>
+    <p class="mb-4">{{ form.description }}</p>
+    
+    <div class="progress">
+        <div id="form-progress" class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+    
+    <div id="form-container" data-form='{{ form_data|tojson }}' data-answers='{{ answers|tojson }}' data-response-id="{{ response_id }}">
+        <div id="question-container" class="question-container">
+            <!-- Question will be rendered here by JavaScript -->
+        </div>
+        
+        <div class="form-navigation">
+            <button id="prev-button" class="btn btn-secondary" disabled>
+                <i class="bi bi-arrow-left me-1"></i>Previous
+            </button>
+            
+            <span id="save-indicator" class="text-muted"></span>
+            
+            <div>
+                <button id="save-button" class="btn btn-outline-primary me-2">
+                    <i class="bi bi-save me-1"></i>Save Progress
+                </button>
+                
+                <button id="next-button" class="btn btn-primary">
+                    Next<i class="bi bi-arrow-right ms-1"></i>
+                </button>
+                
+                <button id="submit-button" class="btn btn-success" style="display: none;">
+                    <i class="bi bi-check-circle me-1"></i>Submit Form
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/form.js') }}"></script>
+{% endblock %}

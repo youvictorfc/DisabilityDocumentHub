@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}Forms - Minto Disability Services{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1>Forms</h1>
+        <p class="lead">Search and complete forms step-by-step</p>
+    </div>
+    {% if current_user.is_admin %}
+    <div class="col-auto">
+        <a href="{{ url_for('form.upload_form') }}" class="btn btn-primary">
+            <i class="bi bi-upload me-2"></i>Upload New Form
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Search bar -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="text" id="form-search" class="form-control" placeholder="Search forms...">
+            <button class="btn btn-outline-secondary" type="button">
+                <i class="bi bi-search"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- In-progress forms section -->
+{% if in_progress_forms %}
+<div class="mb-5">
+    <h3>Continue Where You Left Off</h3>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for form in in_progress_forms %}
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h5 class="card-title">{{ form.form_title }}</h5>
+                        <span class="badge bg-warning text-dark">In Progress</span>
+                    </div>
+                    <p class="card-text text-muted">
+                        Last updated: {{ form.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                    </p>
+                </div>
+                <div class="card-footer bg-transparent border-0">
+                    <a href="{{ url_for('form.fill_form', form_id=form.form_id) }}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-pencil-square me-1"></i>Continue
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- All forms section -->
+<div class="mb-4">
+    <h3>All Forms</h3>
+    {% if forms %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for form in forms %}
+        <div class="col form-card" data-form-title="{{ form.title }}">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">{{ form.title }}</h5>
+                    <p class="card-text">{{ form.description }}</p>
+                </div>
+                <div class="card-footer bg-transparent border-0">
+                    <a href="{{ url_for('form.fill_form', form_id=form.id) }}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-file-earmark-text me-1"></i>Fill Form
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>No forms available yet.
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('form.upload_form') }}" class="alert-link">Upload a form</a> to get started.
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('form-search');
+        const formCards = document.querySelectorAll('.form-card');
+        
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            
+            formCards.forEach(card => {
+                const title = card.dataset.formTitle.toLowerCase();
+                if (title.includes(searchTerm)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
