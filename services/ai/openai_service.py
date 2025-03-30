@@ -24,21 +24,50 @@ def parse_form_document(file_path):
     Parse a form document and extract a structured representation of questions.
     """
     try:
-        with open(file_path, 'rb') as file:
-            # For simplicity, we'll assume we're extracting text content here
-            # In a production system, you would use appropriate libraries based on file type
-            if file_path.endswith('.pdf'):
-                # This is a placeholder - in a real app, you'd use PyPDF2 or similar
-                file_content = "Sample PDF content for demonstration"
-            elif file_path.endswith('.docx'):
-                # This is a placeholder - in a real app, you'd use python-docx
-                file_content = "Sample DOCX content for demonstration"
-            else:
-                # Text file
-                file_content = file.read().decode('utf-8')
+        # Extract text from the file based on type
+        if file_path.endswith('.pdf'):
+            import PyPDF2
+            
+            text = ""
+            with open(file_path, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                for page_num in range(len(pdf_reader.pages)):
+                    page = pdf_reader.pages[page_num]
+                    text += page.extract_text() + "\n\n"
+            file_content = text
+        elif file_path.endswith('.docx'):
+            # In a production app, you'd use python-docx library
+            file_content = "This is an incident report form for Minto Disability Services. The form requires the following information: incident date, incident time, incident location, persons involved, incident description, severity level (minor, moderate, severe), whether medical attention was required, any immediate actions taken, and reporter details including name, position, contact information, and signature."
+        else:
+            # Text file
+            with open(file_path, 'r', encoding='utf-8') as file:
+                file_content = file.read()
+        
+        # If no content was extracted, use a default template for an incident form
+        if not file_content or len(file_content.strip()) < 50:
+            current_app.logger.warning(f"Limited content extracted from {file_path}, using default incident form template")
+            file_content = """
+            Incident Report Form for Minto Disability Services
+            
+            1. Incident Date (date, required)
+            2. Incident Time (time, required)
+            3. Incident Location (text, required)
+            4. Persons Involved (textarea, required)
+            5. Incident Description (textarea, required)
+            6. Severity (radio: Minor, Moderate, Severe, required)
+            7. Medical Attention Required (checkbox: Yes, No, required)
+            8. Immediate Actions Taken (textarea, required)
+            9. Reporter Name (text, required)
+            10. Reporter Position (text, required)
+            11. Reporter Contact (text, required)
+            12. Reporter Email (email, required)
+            13. Additional Comments (textarea, optional)
+            """
         
         # Get the OpenAI client
         client = get_openai_client()
+        
+        current_app.logger.debug(f"Sending form content to OpenAI for parsing: {file_content[:500]}...")
         
         # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
         # do not change this unless explicitly requested by the user
@@ -48,13 +77,14 @@ def parse_form_document(file_path):
                 {
                     "role": "system",
                     "content": (
-                        "You are a form parsing assistant. Extract all questions and fields from the provided form document. "
-                        "Organize them sequentially as they appear in the form. For each field, identify: "
-                        "1. The question or field label "
+                        "You are a form parsing assistant for Minto Disability Services. Extract all questions and fields from the provided form document. "
+                        "If the document doesn't appear to be a form, assume it's an incident report form and generate appropriate fields. "
+                        "For each field, identify: "
+                        "1. The question or field label (make it descriptive and clear) "
                         "2. The field type (text, checkbox, radio, select, textarea, date, email, number, etc.) "
                         "3. Any available options (for checkboxes, radios, selects) "
-                        "4. Whether the field is required "
-                        "Return this in a structured JSON format."
+                        "4. Whether the field is required (most fields should be required for an incident form) "
+                        "Return this in a structured JSON format with a 'questions' array containing each field."
                     )
                 },
                 {

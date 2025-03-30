@@ -183,13 +183,24 @@ def submit_form(response_id):
         response.submitted_at = datetime.utcnow()
         db.session.commit()
         
-        # Send email with PDF
+        # Send email with PDF to both the user and Minto Disability Services
         try:
+            # Send to the user
             send_form_email(
                 recipient_email=current_user.email,
                 form_title=form.title,
                 pdf_path=pdf_path
             )
+            
+            # Also ensure it goes to Minto Disability Services
+            minto_email = "hello@mintodisabilityservices.com.au"
+            if current_user.email.lower() != minto_email.lower():
+                send_form_email(
+                    recipient_email=minto_email,
+                    form_title=f"{form.title} - Submitted by {current_user.username}",
+                    pdf_path=pdf_path
+                )
+            
             email_sent = True
         except Exception as e:
             email_sent = False
