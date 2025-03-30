@@ -52,7 +52,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const question = questions[currentQuestionIndex];
         const questionId = question.id;
-        const isRequired = question.required;
+        // Handle variations in field names from different form structures
+        const questionText = question.question_text || question.question || question.label || "Question " + (currentQuestionIndex + 1);
+        const isRequired = question.required === true;
+        const fieldType = question.field_type || question.type || "text";
+        
+        console.log("Current question:", question);
         
         // Update progress
         const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
@@ -62,13 +67,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Create question HTML
         let questionHTML = `
             <div class="question-title">
-                ${question.question}
+                ${questionText}
                 ${isRequired ? '<span class="required-indicator">*</span>' : ''}
             </div>
         `;
         
-        // Add field based on type
-        switch (question.type) {
+        // Add field based on type (supporting both field_type and type properties)
+        switch (fieldType) {
             case 'text':
                 questionHTML += `
                     <input type="text" class="form-control" id="input-${questionId}" 
@@ -182,8 +187,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set up input event listeners
     function setupInputListeners(question) {
         const questionId = question.id;
+        const fieldType = question.field_type || question.type || "text";
         
-        switch (question.type) {
+        switch (fieldType) {
             case 'radio':
                 const radioInputs = document.querySelectorAll(`input[name="input-${questionId}"]`);
                 radioInputs.forEach(input => {
@@ -268,14 +274,16 @@ document.addEventListener('DOMContentLoaded', function() {
         
         questions.forEach(question => {
             const answer = answers[question.id];
+            const questionText = question.question_text || question.question || question.label || "Question";
+            const fieldType = question.field_type || question.type || "text";
             
             reviewHTML += `
                 <div class="mb-4">
-                    <div class="fw-bold">${question.question}</div>
+                    <div class="fw-bold">${questionText}</div>
                     <div class="mt-2">
             `;
             
-            if (question.type === 'checkbox' && Array.isArray(answer)) {
+            if (fieldType === 'checkbox' && Array.isArray(answer)) {
                 if (answer.length === 0) {
                     reviewHTML += '<em>No options selected</em>';
                 } else {

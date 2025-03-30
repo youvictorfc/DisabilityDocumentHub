@@ -29,8 +29,10 @@ def generate_pdf_from_form(form_title, form_structure, answers, output_path):
         questions = form_structure.get('questions', [])
         for question in questions:
             question_id = question.get('id')
-            question_text = question.get('question', '')
-            field_type = question.get('type', 'text')
+            # Get question text from various possible field names
+            question_text = question.get('question_text') or question.get('question') or question.get('label') or f"Question {question_id}"
+            # Get field type from possible variations
+            field_type = question.get('field_type') or question.get('type') or 'text'
             
             # Question
             pdf.set_font("Arial", "B", 12)

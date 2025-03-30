@@ -31,12 +31,15 @@ def validate_form_submission(form_structure, answers):
     
     for question in questions:
         question_id = question.get('id')
+        # Handle different field name variations in the structure
         is_required = question.get('required', False)
+        # Get the question text from various possible field names
+        question_text = question.get('question_text') or question.get('question') or question.get('label') or f"Question {question_id}"
         
         if is_required and (question_id not in answers or not answers[question_id]):
             missing_fields.append({
                 'id': question_id,
-                'question': question.get('question')
+                'question': question_text
             })
     
     return {
