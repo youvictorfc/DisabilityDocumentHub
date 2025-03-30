@@ -1,0 +1,114 @@
+Minto Disability Services Document Hub - Refined Scope
+Core Function 1: Interactive Form Completion
+
+Search and select from available forms
+Step-by-step guided form completion (one question at a time)
+Email submission of completed forms to your designated email
+Progress saving for incomplete forms
+
+Core Function 2: Policy & Procedure Knowledge Base
+
+Repository for uploaded policy and procedure documents
+Natural language question interface
+AI-powered document search and answer generation
+Source citation with references to specific documents
+
+Technical Implementation with OpenAI Integration
+Application Workflow DiagramDiagram 
+Technical Components:
+
+Database Structure
+
+Forms collection/table (form templates, metadata)
+Form responses collection/table (user submissions, status)
+Documents collection/table (policies, procedures, metadata)
+Vector storage for document embeddings
+
+
+OpenAI Integration
+
+For Form Function: Use OpenAI to convert form documents into structured question flow
+For Policy Assistant: Use embeddings for semantic search + GPT for answer generation
+Implementation of a Retrieval Augmented Generation (RAG) system
+
+
+File Handling
+
+Document upload and processing pipeline
+PDF generation for completed forms
+Email integration for form submission
+
+
+
+Replit Implementation Plan
+
+Project Setup
+
+Python Flask application
+Database configuration (SQLite for simplicity or PostgreSQL for production)
+OpenAI API integration
+Basic authentication system
+
+
+Form Processing System
+
+Form upload interface for administrators
+Form parser to extract questions and structure
+Sequential question presentation interface
+Form state management and progress saving
+PDF generation and email functionality
+
+
+Knowledge Base System
+
+Document upload interface
+Text extraction and processing
+Vector embedding generation using OpenAI embeddings
+Vector database integration (could use FAISS or similar)
+Question-answering system with RAG approach
+
+
+User Interface
+
+Clean, accessible design
+Search functionality for both forms and policies
+Form completion interface with progress tracking
+Chat interface for policy questions
+
+
+
+Code Structure
+Copy/app
+  /static           # CSS, JS, and static assets
+  /templates        # HTML templates
+  /uploads          # Temporary file storage
+  /models           # Database models
+  /controllers      # Route handlers
+  /services
+    /form           # Form processing logic
+    /document       # Document processing logic
+    /ai             # OpenAI integration
+  /utils            # Helper functions
+  app.py            # Main application file
+  config.py         # Configuration settings
+  requirements.txt  # Dependencies
+Key Technical Challenges and Solutions:
+
+Form Extraction & Structuring
+
+Solution: Use OpenAI to parse PDF/DOCX form documents into structured JSON representations
+
+
+Document Understanding
+
+Solution: Chunk documents and generate embeddings for semantic retrieval
+
+
+Answer Generation
+
+Solution: Implement RAG pattern (retrieve relevant chunks + generate answers with context)
+
+
+State Management
+
+Solution: Session-based form progress tracking with database persistence
