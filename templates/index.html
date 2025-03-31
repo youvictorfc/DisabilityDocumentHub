@@ -3,39 +3,30 @@
 {% block title %}Minto Disability Services - Document Hub{% endblock %}
 
 {% block content %}
-<div class="px-4 py-5 my-5 text-center">
-    <img src="{{ url_for('static', filename='images/minto-disability-logo.png') }}" alt="Minto Disability Services Logo" class="img-fluid mb-4" style="max-height: 120px;">
-    <h1 class="display-5 fw-bold mb-4">Document Hub</h1>
+<!-- Hero Section (Teal Background) -->
+<div class="section-header text-center mb-5">
+    <h1 class="display-5 fw-bold mb-3">Document Hub</h1>
     <div class="col-lg-8 mx-auto">
         <p class="lead mb-4">
-            Welcome to our document management system. This platform helps you complete forms
+            Welcome to the Minto Disability Services document management system. This platform helps you complete forms
             and access policy information through our AI-powered assistant.
         </p>
         
-        {% if g.get('db_accessible') == False %}
-        <div class="alert alert-warning mb-4" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            <strong>Database connection issue detected.</strong> Some features may be limited.
-            <br>
-            <small>The system will automatically attempt to reconnect.</small>
-        </div>
-        {% endif %}
-        
         {% if current_user.is_authenticated %}
-        <div class="d-grid gap-3 d-sm-flex justify-content-sm-center mt-5">
-            <a href="{{ url_for('form.form_list') }}" class="btn btn-primary btn-lg px-4 gap-3">
+        <div class="d-grid gap-3 d-sm-flex justify-content-sm-center mt-4">
+            <a href="{{ url_for('form.form_list') }}" class="btn btn-secondary btn-lg px-4 gap-3">
                 <i class="bi bi-file-earmark-text me-2"></i>View Forms
             </a>
-            <a href="{{ url_for('policy.policy_assistant') }}" class="btn btn-outline-secondary btn-lg px-4">
+            <a href="{{ url_for('policy.policy_assistant') }}" class="btn btn-light btn-lg px-4">
                 <i class="bi bi-chat-text me-2"></i>Policy Assistant
             </a>
         </div>
         {% else %}
-        <div class="d-grid gap-3 d-sm-flex justify-content-sm-center mt-5">
-            <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg px-4 gap-3">
+        <div class="d-grid gap-3 d-sm-flex justify-content-sm-center mt-4">
+            <a href="{{ url_for('auth.login') }}" class="btn btn-secondary btn-lg px-4 gap-3">
                 <i class="bi bi-box-arrow-in-right me-2"></i>Login
             </a>
-            <a href="{{ url_for('auth.register') }}" class="btn btn-outline-secondary btn-lg px-4">
+            <a href="{{ url_for('auth.register') }}" class="btn btn-light btn-lg px-4">
                 <i class="bi bi-person-plus me-2"></i>Register
             </a>
         </div>
@@ -43,15 +34,23 @@
     </div>
 </div>
 
+<!-- We support the NDIS -->
+<div class="text-center mb-5">
+    <h2>We support the <span class="badge bg-purple px-3 py-2" style="background-color: #7A3C96; color: white;">ndis</span></h2>
+</div>
+
+<!-- Feature Cards -->
 <div class="container">
     <div class="row mb-5">
         <div class="col-md-6 mb-4">
             <div class="card h-100">
-                <div class="card-body">
-                    <h3 class="card-title">
-                        <i class="bi bi-file-earmark-text text-primary me-2"></i>
+                <div class="card-header">
+                    <h3 class="card-title mb-0">
+                        <i class="bi bi-file-earmark-text me-2"></i>
                         Interactive Form Completion
                     </h3>
+                </div>
+                <div class="card-body">
                     <ul class="list-group list-group-flush mb-3">
                         <li class="list-group-item">Search and select from available forms</li>
                         <li class="list-group-item">Step-by-step guided form filling</li>
@@ -59,7 +58,7 @@
                         <li class="list-group-item">Email submission of completed forms</li>
                     </ul>
                     {% if current_user.is_authenticated %}
-                    <a href="{{ url_for('form.form_list') }}" class="btn btn-outline-primary">
+                    <a href="{{ url_for('form.form_list') }}" class="btn btn-secondary">
                         View Forms
                     </a>
                     {% endif %}
@@ -69,11 +68,13 @@
         
         <div class="col-md-6 mb-4">
             <div class="card h-100">
-                <div class="card-body">
-                    <h3 class="card-title">
-                        <i class="bi bi-chat-text text-primary me-2"></i>
+                <div class="card-header">
+                    <h3 class="card-title mb-0">
+                        <i class="bi bi-chat-text me-2"></i>
                         Policy & Procedure Assistant
                     </h3>
+                </div>
+                <div class="card-body">
                     <ul class="list-group list-group-flush mb-3">
                         <li class="list-group-item">Natural language policy questions</li>
                         <li class="list-group-item">AI-powered document search</li>
@@ -81,7 +82,7 @@
                         <li class="list-group-item">Access to all uploaded policy documents</li>
                     </ul>
                     {% if current_user.is_authenticated %}
-                    <a href="{{ url_for('policy.policy_assistant') }}" class="btn btn-outline-primary">
+                    <a href="{{ url_for('policy.policy_assistant') }}" class="btn btn-secondary">
                         Ask Questions
                     </a>
                     {% endif %}
@@ -89,18 +90,35 @@
             </div>
         </div>
     </div>
-</div>
-
-{% if not config.get('OPENAI_API_KEY') %}
-<div class="container mt-4">
-    <div class="alert alert-info" role="alert">
-        <i class="bi bi-info-circle-fill me-2"></i>
-        <strong>OpenAI API key not configured.</strong> AI-powered features like form extraction and policy assistant may be limited.
-        {% if current_user.is_authenticated and current_user.is_admin %}
-        <br>
-        <small>Administrators: Please set the OPENAI_API_KEY environment variable.</small>
-        {% endif %}
+    
+    <!-- About Section -->
+    <div class="row mb-5">
+        <div class="col-lg-6">
+            <h2 class="text-primary mb-4">About the Document Hub</h2>
+            <p>The Document Hub is designed to simplify your workflow and improve access to important forms and policies at Minto Disability Services.</p>
+            <p>Our AI-powered tools help you:</p>
+            <ul>
+                <li>Complete forms accurately and efficiently</li>
+                <li>Find policy information in seconds</li>
+                <li>Get reliable answers to your procedural questions</li>
+                <li>Access important documents from anywhere</li>
+            </ul>
+        </div>
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-secondary">
+                    <h4 class="mb-0 text-dark">Need Help?</h4>
+                </div>
+                <div class="card-body">
+                    <p>If you have any questions about using the Document Hub, please contact:</p>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-envelope me-2"></i> <a href="mailto:hello@mintodisabilityservices.com.au">hello@mintodisabilityservices.com.au</a></li>
+                        <li><i class="bi bi-telephone me-2"></i> <a href="tel:1300795509">1300 795 509</a></li>
+                    </ul>
+                    <p class="mb-0">Our team is here to help you make the most of these tools.</p>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
-{% endif %}
 {% endblock %}

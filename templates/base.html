@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Minto Disability Services Document Hub{% endblock %}</title>
     
-    <!-- Favicon -->
-    <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
-    
     <!-- Bootstrap CSS (Replit dark theme) -->
     <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
     
@@ -16,16 +13,29 @@
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/minto-theme.css') }}">
     
     {% block head %}{% endblock %}
 </head>
 <body>
+    <!-- Top Banner (green) -->
+    <div class="top-banner">
+        <div class="container d-flex justify-content-between align-items-center">
+            <div>
+                <a href="mailto:hello@mintodisabilityservices.com.au">hello@mintodisabilityservices.com.au</a>
+            </div>
+            <div>
+                <a href="tel:1300795509">1300 795 509</a>
+            </div>
+        </div>
+    </div>
+    
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('index') }}">
-                <img src="{{ url_for('static', filename='images/minto-disability-logo.png') }}" alt="Minto Disability Services Logo" height="40" class="d-inline-block align-middle me-2">
-                <span class="align-middle">Document Hub</span>
+                <img src="{{ url_for('static', filename='images/minto-disability-logo.png') }}" alt="Minto Disability Services Logo">
+                <span class="d-none d-sm-inline">Document Hub</span>
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -100,9 +110,19 @@
     </div>
     
     <!-- Footer -->
-    <footer class="footer mt-auto py-3 bg-dark">
-        <div class="container text-center">
-            <span class="text-muted">© 2025 Minto Disability Services Document Hub</span>
+    <footer class="footer mt-auto py-3">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6 text-center text-md-start">
+                    <img src="{{ url_for('static', filename='images/minto-disability-logo.png') }}" alt="Minto Disability Services Logo" height="40">
+                    <p class="mt-2 text-muted">Providing specialized support for diverse needs</p>
+                </div>
+                <div class="col-md-6 text-center text-md-end">
+                    <p class="text-muted mb-1">Contact: <a href="mailto:hello@mintodisabilityservices.com.au" class="text-muted">hello@mintodisabilityservices.com.au</a></p>
+                    <p class="text-muted mb-0">Phone: <a href="tel:1300795509" class="text-muted">1300 795 509</a></p>
+                    <p class="text-muted mt-2">© 2025 Minto Disability Services Document Hub</p>
+                </div>
+            </div>
         </div>
     </footer>
     
