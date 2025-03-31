@@ -76,12 +76,78 @@ class FormProcessor:
         This also serves as a fallback for PDFs and DOCXs that can't be parsed natively.
         """
         current_app.logger.info(f"Using OpenAI to extract text from file: {file_path}")
+        
+        # Check if this is actually a supported image/document format
+        file_extension = os.path.splitext(file_path)[1].lower()
+        
+        # Determine the correct MIME type based on file extension
+        mime_type_map = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.pdf': 'application/pdf',
+            '.txt': 'text/plain',
+        }
+        
+        mime_type = mime_type_map.get(file_extension, 'application/octet-stream')
+        
+        # Explicitly check if this is a supported format for OpenAI's image API
+        supported_image_formats = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+        
+        # If it's not a supported image format, try to extract text using a different method
+        if file_extension not in supported_image_formats and file_extension != '.pdf':
+            if file_extension == '.txt':
+                # For text files, use the text extractor
+                return self._extract_from_text(file_path)
+            else:
+                # For other unsupported formats, convert text extraction to a text-only prompt
+                current_app.logger.warning(f"File format {file_extension} is not directly supported for image processing.")
+                current_app.logger.info("Attempting to extract content as text...")
+                
+                # Try to read as text with various encodings
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        file_content = f.read()
+                except UnicodeDecodeError:
+                    try:
+                        with open(file_path, 'r', encoding='latin-1') as f:
+                            file_content = f.read()
+                    except Exception:
+                        raise ValueError(f"Cannot process this file format: {file_extension}. Please convert it to a supported format (PDF, JPG, PNG, etc.)")
+                
+                # Process the text content with OpenAI
+                prompt = f"""
+                The following content is from a form document. Extract all form questions, options, and structure:
+                
+                {file_content[:8000]}  # Limit content length to avoid token limits
+                """
+                
+                response = self.client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {
+                            "role": "system", 
+                            "content": "You are a document processing assistant. Extract ALL text content, especially form questions and fields."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=4000
+                )
+                
+                extracted_text = response.choices[0].message.content
+                current_app.logger.info(f"Successfully extracted {len(extracted_text)} characters from text content")
+                return extracted_text
+        
         try:
             import base64
+            import mimetypes
             
             # Read and encode the file
             with open(file_path, "rb") as file:
-                base64_encoded = base64.b64encode(file.read()).decode("utf-8")
+                file_content = file.read()
+                base64_encoded = base64.b64encode(file_content).decode("utf-8")
             
             # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
             # do not change this unless explicitly requested by the user
@@ -101,7 +167,7 @@ class FormProcessor:
                             },
                             {
                                 "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{base64_encoded}"}
+                                "image_url": {"url": f"data:{mime_type};base64,{base64_encoded}"}
                             }
                         ]
                     }
@@ -115,7 +181,14 @@ class FormProcessor:
             
         except Exception as e:
             current_app.logger.error(f"Error using OpenAI for text extraction: {str(e)}")
-            raise ValueError(f"Failed to extract text from the document: {str(e)}")
+            
+            # Provide more helpful error message based on the exception
+            if "unsupported image" in str(e).lower():
+                raise ValueError(f"Unsupported file format: {file_extension}. Please use one of these formats: PDF, PNG, JPEG, GIF, or WebP.")
+            elif "too large" in str(e).lower():
+                raise ValueError("The file is too large for processing. Please reduce the file size or split it into smaller documents.")
+            else:
+                raise ValueError(f"Failed to extract text from the document: {str(e)}")
     
     def extract_questions(self, document_text: str) -> List[Dict[str, Any]]:
         """Extract all questions from the document text using OpenAI."""

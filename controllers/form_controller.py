@@ -55,10 +55,22 @@ def upload_form():
             flash('No file selected', 'danger')
             return render_template('forms/form_upload.html')
         
-        # Allow a wider range of file types, including images
-        allowed_extensions = {'pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff'}
-        if not '.' in file.filename or file.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
-            flash('File type not allowed. Supported types: PDF, Office documents, text, and images (JPG, PNG, etc.)', 'danger')
+        # Allow a specific set of file types - restrict to ones that work well with OpenAI
+        supported_extensions = {'pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'txt', 'doc', 'docx'}
+        file_extension = ''
+        
+        if '.' in file.filename:
+            file_extension = file.filename.rsplit('.', 1)[1].lower()
+        
+        if not file_extension or file_extension not in supported_extensions:
+            flash(f'File type "{file_extension}" not supported. Please use PDF, JPG, PNG, GIF, or TXT formats.', 'danger')
+            return render_template('forms/form_upload.html')
+            
+        # Check file size - OpenAI has limits (typically ~20-25MB)
+        max_size_mb = 20
+        if file.content_length and file.content_length > max_size_mb * 1024 * 1024:
+            file_size_mb = file.content_length / (1024 * 1024)
+            flash(f'File too large ({file_size_mb:.1f} MB). Maximum size is {max_size_mb} MB.', 'danger')
             return render_template('forms/form_upload.html')
         
         # Save the file

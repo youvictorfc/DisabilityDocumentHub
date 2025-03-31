@@ -21,6 +21,28 @@ def extract_form_structure(file_path):
     CRITICAL: Questions must remain exactly as they appear in the uploaded form - same wording, format and order.
     No form questions should be changed, reworded, improved, or reordered during processing.
     """
+    # Check if file exists before processing
+    if not os.path.exists(file_path):
+        error_msg = f"The file {os.path.basename(file_path)} does not exist or cannot be accessed."
+        current_app.logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
+    
+    # Check file size - OpenAI has limits on file sizes
+    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)  # Size in MB
+    if file_size_mb > 20:  # 20MB is a safe limit for most AI processing
+        error_msg = f"The file is too large ({file_size_mb:.1f} MB). Maximum allowed size is 20 MB. Please reduce file size."
+        current_app.logger.error(error_msg)
+        raise ValueError(error_msg)
+    
+    # Check file extension
+    file_extension = os.path.splitext(file_path)[1].lower()
+    supported_formats = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.txt', '.doc', '.docx']
+    
+    if file_extension not in supported_formats:
+        error_msg = f"Unsupported file format: {file_extension}. Supported formats: PDF, JPG, PNG, GIF, WebP, TXT, DOC, DOCX."
+        current_app.logger.error(error_msg)
+        raise ValueError(error_msg)
+    
     try:
         # Log the start of form extraction
         current_app.logger.info(f"Starting EXACT form extraction for file: {file_path}")
@@ -29,12 +51,31 @@ def extract_form_structure(file_path):
         form_processor = get_form_processor()
         form_name = os.path.basename(file_path)
         
-        # Process the form using our enhanced processor
-        current_app.logger.info(f"Processing form document using enhanced FormProcessor: {file_path}")
-        form_data = form_processor.process_form(file_path, form_name)
+        # Process the form using our enhanced processor with better error handling
+        try:
+            current_app.logger.info(f"Processing form document using enhanced FormProcessor: {file_path}")
+            form_data = form_processor.process_form(file_path, form_name)
+        except Exception as process_error:
+            # Provide specific guidance based on file type when errors occur
+            if "unsupported" in str(process_error).lower() and ("image" in str(process_error).lower() or "format" in str(process_error).lower()):
+                if file_extension in ['.doc', '.docx']:
+                    error_msg = f"Unable to process this {file_extension} file. Please convert it to PDF and try again."
+                elif file_extension == '.pdf':
+                    error_msg = f"Unable to process this PDF file. The file may be protected, corrupted, or contain unsupported elements."
+                else:
+                    error_msg = f"Unsupported file format: {file_extension}. Please use PNG, JPEG, PDF, or TXT formats."
+                current_app.logger.error(error_msg)
+                raise ValueError(error_msg)
+            else:
+                # Re-raise the original error
+                raise
         
         # Extract the form structure
         form_structure = form_data.get('structure')
+        if not form_structure:
+            error_msg = "Failed to extract form structure. The process returned an empty result."
+            current_app.logger.error(error_msg)
+            raise ValueError(error_msg)
         
         # Get validation results
         validation = form_data.get('validation', {})
@@ -58,30 +99,29 @@ def extract_form_structure(file_path):
         questions_count = len(questions)
         
         if questions_count == 0:
-            current_app.logger.error("No questions were extracted from the form. Using a fallback form template.")
-            # Create a simple fallback form if no questions were found
-            form_structure = {
-                "questions": [
-                    {
-                        "id": "form_name",
-                        "question_text": "Form Name",
-                        "field_type": "text",
-                        "required": True
-                    },
-                    {
-                        "id": "form_description",
-                        "question_text": "Form Description",
-                        "field_type": "textarea",
-                        "required": True
-                    }
-                ]
-            }
+            error_msg = "No questions were extracted from the form. Please check if the form contains readable questions."
+            current_app.logger.error(error_msg)
+            raise ValueError(error_msg)
             
+        # Success - return the form structure
+        current_app.logger.info(f"Successfully extracted form structure with {questions_count} questions.")
         return form_structure
     
+    except FileNotFoundError as e:
+        # File not found errors should be passed through
+        logging.error(f"File not found: {str(e)}")
+        raise
+    except ValueError as e:
+        # Value errors (like format issues) should be passed through
+        logging.error(f"Value error in form extraction: {str(e)}")
+        raise
     except Exception as e:
-        logging.error(f"Error extracting form structure: {str(e)}")
-        raise Exception(f"Failed to extract form structure: {str(e)}")
+        # For other exceptions, wrap them with more context
+        error_msg = f"Failed to extract form structure: {str(e)}"
+        logging.error(error_msg)
+        # Include original error type in the message for better debugging
+        error_type = type(e).__name__
+        raise Exception(f"Failed to process form: {error_type} - {str(e)}")
 
 def validate_form_submission(form_structure, answers):
     """
