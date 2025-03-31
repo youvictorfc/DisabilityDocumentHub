@@ -18,189 +18,189 @@ def get_incident_form_template() -> List[Dict[str, Any]]:
     """
     template = [
         {
-            "question": "Type of incident",
-            "type": "text",
+            "question_text": "Type of incident",
+            "field_type": "text",
             "required": True,
             "id": "incident_type"
         },
         {
-            "question": "Is it a reportable incident?",
-            "type": "radio",
+            "question_text": "Is it a reportable incident?",
+            "field_type": "radio",
             "options": ["Yes", "No"],
             "required": True,
             "id": "is_reportable"
         },
         {
-            "question": "NDIS or any other authorities?",
-            "type": "text",
+            "question_text": "NDIS or any other authorities?",
+            "field_type": "text",
             "required": False,
             "id": "authorities"
         },
         {
-            "question": "Name of employee providing report",
-            "type": "text",
+            "question_text": "Name of employee providing report",
+            "field_type": "text",
             "required": True,
             "id": "employee_name"
         },
         {
-            "question": "Names of witnesses if applicable",
-            "type": "text",
+            "question_text": "Names of witnesses if applicable",
+            "field_type": "text",
             "required": False,
             "id": "witnesses"
         },
         {
-            "question": "This report is about a (please circle):",
-            "type": "radio",
+            "question_text": "This report is about a (please circle):",
+            "field_type": "radio",
             "options": ["Concern", "Change", "Incident"],
             "required": True,
             "id": "report_type"
         },
         {
-            "question": "Date and time of when issue occurred or was noticed:",
-            "type": "datetime",
+            "question_text": "Date and time of when issue occurred or was noticed:",
+            "field_type": "datetime",
             "required": True,
             "id": "incident_datetime"
         },
         {
-            "question": "Location/ Address:",
-            "type": "text",
+            "question_text": "Location/ Address:",
+            "field_type": "text",
             "required": True,
             "id": "location"
         },
         {
-            "question": "Name of Client:",
-            "type": "text",
+            "question_text": "Name of Client:",
+            "field_type": "text",
             "required": True,
             "id": "client_name"
         },
         {
-            "question": "Description of issue being reported: (sketch if required)",
-            "type": "textarea",
+            "question_text": "Description of issue being reported: (sketch if required)",
+            "field_type": "textarea",
             "required": True,
             "id": "description"
         },
         {
-            "question": "Immediate action taken: (if taken)",
-            "type": "textarea",
+            "question_text": "Immediate action taken: (if taken)",
+            "field_type": "textarea",
             "required": False,
             "id": "immediate_action"
         },
         {
-            "question": "Suggested further action: (include suggestions for reducing or eliminating the issue & timelines)",
-            "type": "textarea",
+            "question_text": "Suggested further action: (include suggestions for reducing or eliminating the issue & timelines)",
+            "field_type": "textarea",
             "required": False,
             "id": "suggested_action"
         },
         {
-            "question": "Reported to: (Name of Manager/Coordinator)",
-            "type": "text",
+            "question_text": "Reported to: (Name of Manager/Coordinator)",
+            "field_type": "text",
             "required": True,
             "id": "reported_to"
         },
         {
-            "question": "Date:",
-            "type": "date",
+            "question_text": "Date:",
+            "field_type": "date",
             "required": True,
             "id": "report_date"
         },
         {
-            "question": "Signed by:",
-            "type": "text",
+            "question_text": "Signed by:",
+            "field_type": "text",
             "required": True,
             "id": "signature"
         },
         {
-            "question": "Date:",
-            "type": "date",
+            "question_text": "Date:",
+            "field_type": "date",
             "required": True,
             "id": "signature_date"
         },
         # Incident Investigation section
         {
-            "question": "Date received at head office:",
-            "type": "date",
+            "question_text": "Date received at head office:",
+            "field_type": "date",
             "required": False,
             "id": "received_date"
         },
         {
-            "question": "Please circle:",
-            "type": "radio",
+            "question_text": "Please circle:",
+            "field_type": "radio",
             "options": ["Concern", "Change", "Incident"],
             "required": False,
             "id": "classification"
         },
         {
-            "question": "Name of employee:",
-            "type": "text",
+            "question_text": "Name of employee:",
+            "field_type": "text",
             "required": False,
             "id": "employee_name_2"
         },
         {
-            "question": "Name of client:",
-            "type": "text",
+            "question_text": "Name of client:",
+            "field_type": "text",
             "required": False,
             "id": "client_name_2"
         },
         # Short-Term Responses section
         {
-            "question": "Indicate action taken by Unit Manager/Coordinator: (include discussion & feedback with employee, client/carer) to resolve the issue or provide an interim resolution.",
-            "type": "textarea",
+            "question_text": "Indicate action taken by Unit Manager/Coordinator: (include discussion & feedback with employee, client/carer) to resolve the issue or provide an interim resolution.",
+            "field_type": "textarea",
             "required": False,
             "id": "manager_action"
         },
         {
-            "question": "Signed by:",
-            "type": "text",
+            "question_text": "Signed by:",
+            "field_type": "text",
             "required": False,
             "id": "manager_signature"
         },
         {
-            "question": "Date:",
-            "type": "date",
+            "question_text": "Date:",
+            "field_type": "date",
             "required": False,
             "id": "manager_date"
         },
         {
-            "question": "Response Timeframe",
-            "type": "radio",
+            "question_text": "Response Timeframe",
+            "field_type": "radio",
             "options": ["Immediate", "Urgent"],
             "required": False,
             "id": "response_timeframe"
         },
         {
-            "question": "Date:",
-            "type": "date",
+            "question_text": "Date:",
+            "field_type": "date",
             "required": False,
             "id": "timeframe_date"
         },
         # Long-Term Responses section
         {
-            "question": "If further action is required, outline this and include timelines for review/resolution:",
-            "type": "textarea",
+            "question_text": "If further action is required, outline this and include timelines for review/resolution:",
+            "field_type": "textarea",
             "required": False,
             "id": "further_action"
         },
         {
-            "question": "Manager/ Coordinator:",
-            "type": "text",
+            "question_text": "Manager/ Coordinator:",
+            "field_type": "text",
             "required": False,
             "id": "manager_name"
         },
         {
-            "question": "Signature:",
-            "type": "text",
+            "question_text": "Signature:",
+            "field_type": "text",
             "required": False,
             "id": "manager_signature_2"
         },
         {
-            "question": "Date:",
-            "type": "date",
+            "question_text": "Date:",
+            "field_type": "date",
             "required": False,
             "id": "long_term_date"
         },
         {
-            "question": "Reported to the Health and Safety Committee:",
-            "type": "text",
+            "question_text": "Reported to the Health and Safety Committee:",
+            "field_type": "text",
             "required": False,
             "id": "health_safety_report"
         }
@@ -218,17 +218,42 @@ def is_incident_form(content: str) -> bool:
     Returns:
         bool: True if the content appears to be an incident form
     """
-    incident_indicators = [
+    # Primary indicators - strongly suggest this is an incident form
+    primary_indicators = [
         "incident form",
         "incident report",
         "type of incident",
         "reportable incident",
+    ]
+    
+    # Secondary indicators - common in incident forms but may appear in other forms too
+    secondary_indicators = [
         "names of witnesses",
-        "immediate action taken"
+        "immediate action taken",
+        "date and time of when issue occurred",
+        "description of issue being reported",
+        "names of witnesses",
+        "suggested further action",
+        "ndis or any other authorities",
+        "concern, change, incident",
+        "name of employee providing report",
+        "incident investigation",
+        "health and safety committee"
     ]
     
     # Count how many indicators are present
-    indicator_count = sum(1 for indicator in incident_indicators if indicator.lower() in content.lower())
+    primary_count = sum(1 for indicator in primary_indicators if indicator.lower() in content.lower())
+    secondary_count = sum(1 for indicator in secondary_indicators if indicator.lower() in content.lower())
     
-    # If more than 2 indicators are present, it's likely an incident form
-    return indicator_count >= 2
+    logger.debug(f"Incident form detection: {primary_count} primary and {secondary_count} secondary indicators found")
+    
+    # Rules to determine if it's an incident form:
+    # 1. If at least 1 primary indicator is present AND at least 2 secondary indicators
+    # 2. OR if at least 2 primary indicators are present
+    # 3. OR if at least 4 secondary indicators are present (strong contextual evidence)
+    is_incident = (primary_count >= 1 and secondary_count >= 2) or (primary_count >= 2) or (secondary_count >= 4)
+    
+    if is_incident:
+        logger.info(f"Identified as incident form with {primary_count} primary and {secondary_count} secondary indicators")
+    
+    return is_incident

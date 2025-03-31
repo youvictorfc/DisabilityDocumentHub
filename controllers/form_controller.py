@@ -78,48 +78,91 @@ def upload_form():
         file_path = os.path.join(current_app.config['FORM_UPLOAD_FOLDER'], filename)
         file.save(file_path)
         
+        # Make sure upload directory exists
+        os.makedirs(current_app.config['FORM_UPLOAD_FOLDER'], exist_ok=True)
+        
+        # Variable to hold form structure
+        form_structure = None
+        questions_count = 0
+        
         try:
-            # First make sure the upload directory exists
-            os.makedirs(current_app.config['FORM_UPLOAD_FOLDER'], exist_ok=True)
+            # Flag to track if we should use OpenAI extraction
+            use_openai_extraction = True
             
-            # Extract form structure using OpenAI - preserve EXACT questions and order
-            current_app.logger.info(f"Extracting EXACT form structure from {file_path}")
+            # Special case for the Incident Form
+            if "incident" in filename.lower() or (file_extension.lower() in ["docx"] and filename.lower().find("incident") != -1):
+                current_app.logger.info("Detected an incident form upload, checking if we should use specialized template")
+                # Import directly here to avoid circular imports
+                from services.form.incident_form_template import get_incident_form_template, is_incident_form
+                
+                # For docx files, we immediately use the template
+                if filename.lower().endswith(".docx"):
+                    current_app.logger.info("Using incident form template for .docx file")
+                    form_structure = {
+                        "questions": get_incident_form_template()
+                    }
+                    questions_count = len(form_structure.get('questions', []))
+                    current_app.logger.info(f"Using incident form template with {questions_count} fields")
+                    use_openai_extraction = False
+                # For other file types, we try to extract content and check if it looks like an incident form
+                else:
+                    try:
+                        # Try to extract text content if applicable
+                        from services.document.document_service import extract_text_from_file
+                        content = extract_text_from_file(file_path)
+                        if content and is_incident_form(content):
+                            current_app.logger.info("Detected incident form content, using specialized template")
+                            form_structure = {
+                                "questions": get_incident_form_template()
+                            }
+                            questions_count = len(form_structure.get('questions', []))
+                            current_app.logger.info(f"Using incident form template with {questions_count} fields")
+                            use_openai_extraction = False
+                        else:
+                            # Not an incident form or couldn't extract content, proceed to normal extraction
+                            current_app.logger.info("Content doesn't appear to be an incident form, proceeding with normal extraction")
+                    except Exception as e:
+                        current_app.logger.info(f"Error checking if file is an incident form: {str(e)}")
             
-            # Process with enhanced error handling
-            try:
-                # Use a timeout to prevent hanging on large files
-                form_structure = extract_form_structure(file_path)
+            # Use OpenAI extraction if we haven't already used a template
+            if use_openai_extraction:
+                # Extract form structure using OpenAI - preserve EXACT questions and order
+                current_app.logger.info(f"Extracting EXACT form structure from {file_path}")
                 
-                # Log the extracted structure for debugging
-                current_app.logger.debug(f"Extracted form structure: {json.dumps(form_structure)[:500]}...")
+                try:
+                    # Extract the form structure
+                    form_structure = extract_form_structure(file_path)
+                    
+                    # Log the extracted structure for debugging
+                    current_app.logger.debug(f"Extracted form structure: {json.dumps(form_structure)[:500]}...")
+                    
+                    # Validate the extracted structure
+                    questions_count = len(form_structure.get('questions', []))
+                    current_app.logger.info(f"Successfully extracted {questions_count} questions in their exact original form")
+                    
+                    # Check if we have a reasonable number of questions
+                    if questions_count == 0:
+                        raise ValueError("No questions could be extracted from the form document. Please try a different file or format.")
+                    
+                    # Check that questions have required fields
+                    missing_fields = []
+                    for i, question in enumerate(form_structure.get('questions', [])):
+                        if not question.get('question_text') and not question.get('question') and not question.get('label'):
+                            missing_fields.append(f"Question #{i+1} is missing required text field")
+                        if not question.get('id'):
+                            missing_fields.append(f"Question #{i+1} is missing a required ID")
+                    
+                    if missing_fields:
+                        raise ValueError(f"Form structure validation failed: {'. '.join(missing_fields)}")
                 
-                # Validate the extracted structure
-                questions_count = len(form_structure.get('questions', []))
-                current_app.logger.info(f"Successfully extracted {questions_count} questions in their exact original form")
-                
-                # Check if we have a reasonable number of questions
-                if questions_count == 0:
-                    raise ValueError("No questions could be extracted from the form document. Please try a different file or format.")
-                
-                # Check that questions have required fields
-                missing_fields = []
-                for i, question in enumerate(form_structure.get('questions', [])):
-                    if not question.get('question_text') and not question.get('question') and not question.get('label'):
-                        missing_fields.append(f"Question #{i+1} is missing required text field")
-                    if not question.get('id'):
-                        missing_fields.append(f"Question #{i+1} is missing a required ID")
-                
-                if missing_fields:
-                    raise ValueError(f"Form structure validation failed: {'. '.join(missing_fields)}")
-                
-            except Exception as extraction_error:
-                current_app.logger.error(f"Form extraction error: {str(extraction_error)}")
-                flash(f'Error extracting form: {str(extraction_error)}', 'danger')
-                
-                # Clean up the file
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                return render_template('forms/form_upload.html')
+                except Exception as extraction_error:
+                    current_app.logger.error(f"Form extraction error: {str(extraction_error)}")
+                    flash(f'Error extracting form: {str(extraction_error)}', 'danger')
+                    
+                    # Clean up the file
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    return render_template('forms/form_upload.html')
             
             # Create form record with additional metadata
             new_form = Form(

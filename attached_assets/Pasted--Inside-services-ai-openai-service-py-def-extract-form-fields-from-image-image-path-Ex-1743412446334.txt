@@ -1,0 +1,59 @@
+# Inside `services/ai/openai_service.py`:
+
+def extract_form_fields_from_image(image_path):
+    """Extract form fields from an image using GPT-4o multimodal capabilities."""
+    client = get_openai_client()
+    
+    try:
+        base64_image = encode_image_to_base64(image_path)
+        
+        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+        # do not change this unless explicitly requested by the user
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a form extraction expert for Minto Disability Services with special focus on EXACT field extraction. "
+                        "Your task is to analyze the provided image of a form and extract ALL form fields/questions EXACTLY as they appear in the original. "
+                        "IMPORTANT: Do NOT rephrase, modify, combine, or add any questions. Preserve the original text, formatting, and order exactly. "
+                        "Extract the precise label text for every field. Do not summarize or generalize fields. Be extremely literal in your extraction. "
+                        "You must return your output as a structured JSON in the format below: "
+                        "{{'questions': [{{'id': 'unique_id', 'question_text': 'The EXACT question as it appears', 'field_type': 'text|textarea|radio|checkbox|select|date|email|number|signature', 'options': ['Option 1', 'Option 2'], 'required': true|false}}]}}"
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Here's an image of a form. Your task is to extract ALL fields EXACTLY as they appear in the original form, maintaining the original wording, order, and structure. "
+                            "Don't try to improve, clarify, or reorganize the form - I need the EXACT original form fields. "
+                            "Format your response as a structured JSON with a 'questions' array in the SAME ORDER as they appear on the form. Include: "
+                            "1. A unique 'id' (use a simple index number or field name without modifying the text) "
+                            "2. 'question_text' (the EXACT and COMPLETE text of the field/question as it appears on the form, including any numbering or formatting) "
+                            "3. 'field_type' (text, textarea, date, checkbox, radio, select, email, etc.) "
+                            "4. 'options' array (EXACT options text for checkbox, radio, select fields) "
+                            "5. 'required' (true/false - based on asterisks or 'required' markers) "
+                            "Return this as JSON. Do not skip ANY fields. Do not merge fields. Do not improve or reword the questions."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            response_format={"type": "json_object"}
+        )
+        
+        result = json.loads(response.choices[0].message.content)
+        current_app.logger.info(f"Extracted {len(result.get('questions', []))} form fields from image")
+        return result
+    
+    except Exception as e:
+        current_app.logger.error(f"Error extracting fields from image: {str(e)}")
+        raise Exception(f"Failed to extract form fields from image: {str(e)}")

@@ -41,57 +41,171 @@ def encode_image_to_base64(image_path):
         return base64.b64encode(image_file.read()).decode('utf-8')
 
 def extract_form_fields_from_image(image_path):
-    """Extract form fields from an image using GPT-4o multimodal capabilities"""
+    """Extract form fields from an image using GPT-4o multimodal capabilities with enhanced handling for challenging images"""
     client = get_openai_client()
     
     try:
         base64_image = encode_image_to_base64(image_path)
+        current_app.logger.info(f"Attempting form extraction from image: {image_path}")
         
-        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-        # do not change this unless explicitly requested by the user
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a form extraction expert for Minto Disability Services with special focus on EXACT field extraction. "
-                        "Your task is to analyze the provided image of a form and extract ALL form fields/questions EXACTLY as they appear in the original. "
-                        "IMPORTANT: Do NOT rephrase, modify, combine, or add any questions. Preserve the original text, formatting, and order exactly. "
-                        "Extract the precise label text for every field. Do not summarize or generalize fields. Be extremely literal in your extraction. "
-                        "You must return your output as structured JSON."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Here's an image of a form. Your task is to extract ALL fields EXACTLY as they appear in the original form, maintaining the original wording, order, and structure. "
-                            "Don't try to improve, clarify, or reorganize the form - I need the EXACT original form fields. "
-                            "Format your response as a structured JSON with a 'questions' array in the SAME ORDER as they appear on the form. Include: "
-                            "1. A unique 'id' (use a simple index number or field name without modifying the text) "
-                            "2. 'question_text' (the EXACT and COMPLETE text of the field/question as it appears on the form, including any numbering or formatting) "
-                            "3. 'field_type' (text, textarea, date, checkbox, radio, select, email, etc.) "
-                            "4. 'options' array (EXACT options text for checkbox, radio, select fields) "
-                            "5. 'required' (true/false - based on asterisks or 'required' markers) "
-                            "Return this as JSON. Do not skip ANY fields. Do not merge fields. Do not improve or reword the questions."
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
+        # First try with GPT-4o
+        try:
+            # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+            # do not change this unless explicitly requested by the user
+            current_app.logger.info(f"Attempting form extraction with GPT-4o model")
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a specialized form extraction expert for Minto Disability Services with exceptional attention to detail. "
+                            "Your task is to analyze the provided image of a form and extract ALL form fields/questions EXACTLY as they appear in the original. "
+                            "CRITICAL REQUIREMENTS:\n"
+                            "1. Extract EVERY form element with the EXACT original text - NO paraphrasing, NO combining, NO improving clarity\n"
+                            "2. If the image quality is poor, do your absolute best to decipher the text while maintaining exact wording\n"
+                            "3. If the image is rotated or skewed, mentally adjust your perspective to read it correctly\n"
+                            "4. For complex forms with multiple sections or tables, process sequentially (usually top-to-bottom, left-to-right)\n"
+                            "5. Never add explanatory text to fields that isn't present in the original\n"
+                            "6. If you're uncertain about field content, include what you can see and note uncertainty with [?] in field labels\n\n"
+                            
+                            "You must return your output as a structured JSON in the following format (EXACTLY):\n"
+                            "{\n"
+                            "  \"questions\": [\n"
+                            "    {\n"
+                            "      \"id\": \"unique_id\",\n"
+                            "      \"question_text\": \"The EXACT and COMPLETE text of the question as it appears on the form\",\n"
+                            "      \"field_type\": \"text|textarea|radio|checkbox|select|date|email|number|signature\",\n"
+                            "      \"options\": [\"Option 1\", \"Option 2\"],\n"
+                            "      \"required\": true|false\n"
+                            "    }\n"
+                            "  ]\n"
+                            "}"
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    "Here's an image of a form. Your task is to extract ALL fields EXACTLY as they appear in the original form, maintaining the original wording, order, and structure. "
+                                    "Don't try to improve, clarify, or reorganize the form - I need the EXACT original form fields as they appear on the form.\n\n"
+                                    "IMPORTANT GUIDELINES:\n"
+                                    "1. Extract ALL form elements - including lines that end with a colon, blank spaces, form fields, checkboxes, etc.\n"
+                                    "2. Treat all blank lines following a label as input fields\n"
+                                    "3. Look for form field indicators like colons, underlines, or checkboxes\n"
+                                    "4. Do not skip ANY fields, even if they seem minor or redundant\n"
+                                    "5. Maintain the EXACT original wording and formatting of all labels\n"
+                                    "6. For fields with options (like radio buttons), extract all options exactly\n\n"
+                                    "Format your response as structured JSON with a 'questions' array in the SAME ORDER they appear on the form. Include:\n"
+                                    "1. A unique 'id' for each field (use field_1, field_2, etc.)\n"
+                                    "2. 'question_text': The EXACT text of the field/question as it appears\n"
+                                    "3. 'field_type': appropriate type (text, textarea, radio, checkbox, select, date, etc.)\n"
+                                    "4. 'options': array of options if applicable (for radio, checkbox, select fields)\n"
+                                    "5. 'required': whether the field appears to be required (based on asterisks, etc.)\n\n"
+                                    "Do NOT add, reword, clarify, or merge any fields. Extract EXACTLY what is visible."
+                                )
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
                             }
-                        }
-                    ]
-                }
-            ],
-            response_format={"type": "json_object"}
-        )
+                        ]
+                    }
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2  # Lower temperature for more precise extraction
+            )
+            
+            result = json.loads(response.choices[0].message.content)
+            question_count = len(result.get('questions', []))
+            current_app.logger.info(f"Successfully extracted {question_count} form fields from image using GPT-4o")
+            
+            # If we got a reasonable number of questions, return the result
+            # Some legitimate forms might have only a few fields
+            if question_count >= 3:
+                return result
+            else:
+                current_app.logger.warning(f"GPT-4o only extracted {question_count} fields, which seems insufficient. Trying alternative model.")
+                # Continue to the fallback model
         
-        result = json.loads(response.choices[0].message.content)
-        current_app.logger.info(f"Extracted {len(result.get('questions', []))} form fields from image")
-        return result
+        except Exception as model1_error:
+            current_app.logger.warning(f"GPT-4o extraction failed: {str(model1_error)}. Trying alternative model.")
+        
+        # Fallback to GPT-4-turbo if GPT-4o failed or extracted too few fields
+        try:
+            current_app.logger.info(f"Attempting form extraction with fallback model")
+            response = client.chat.completions.create(
+                model="gpt-4-turbo-preview",  # Use an alternative model
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a form extraction expert for Minto Disability Services. Your task is to analyze the provided document "
+                            "(image or text) of a form and extract ALL form fields/questions EXACTLY as they appear in the original. "
+                            "IMPORTANT: Do NOT rephrase, modify, or add any questions. Preserve the original text and formatting exactly. "
+                            "Extract the precise label text for every field. Do not summarize or generalize fields. Be extremely literal in your extraction."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    "This is a different approach to extract ALL form fields, so please analyze this image carefully:\n\n"
+                                    
+                                    "RECOGNITION INSTRUCTIONS:\n"
+                                    "1. Analyze the ENTIRE image thoroughly - check headers, footers, margins, and all sections\n"
+                                    "2. Be alert for fields in unusual locations (margins, headers, footers, etc.)\n"
+                                    "3. For rotated images, visually rotate and extract fields in their logical order\n"
+                                    "4. In poor quality images, make your best effort to decipher text while maintaining exact wording\n"
+                                    "5. Check for watermarks or background elements that might contain form information\n\n"
+                                    
+                                    "FIELD IDENTIFICATION GUIDELINES:\n"
+                                    "1. Extract ALL form elements - including labels with colons, blank lines/spaces, checkboxes, etc.\n"
+                                    "2. Treat all blank lines following text as input fields\n"
+                                    "3. Look for field indicators like colons, underlines, boxes, lines, or blank spaces\n"
+                                    "4. For tables, extract each row/cell as separate fields based on headers and context\n"
+                                    "5. Extract multi-line text areas as single textarea fields\n"
+                                    "6. Maintain the EXACT original wording of all field labels\n"
+                                    "7. For fields with options (radio buttons, checkboxes), extract all options with exact wording\n\n"
+                                    
+                                    "FORMAT YOUR RESPONSE as JSON with a 'questions' array following these requirements:\n"
+                                    "1. Preserve the SAME ORDER as they appear on the form (top-to-bottom, left-to-right)\n"
+                                    "2. Generate a sensible unique 'id' for each field (e.g., 'name', 'address_line1', etc.)\n" 
+                                    "3. Include 'question_text' with the EXACT text of the label as it appears\n"
+                                    "4. Set appropriate 'field_type' (text, textarea, radio, checkbox, select, date, etc.)\n"
+                                    "5. Include 'options' array when applicable\n"
+                                    "6. Set 'required' based on any indicators in the form (asterisks, 'required' text, etc.)\n\n"
+                                    
+                                    "EXTRACT EVERYTHING: This is my fallback extraction attempt, so be extremely thorough and detailed."
+                                )
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2  # Lower temperature for more precise extraction
+            )
+            
+            result = json.loads(response.choices[0].message.content)
+            question_count = len(result.get('questions', []))
+            current_app.logger.info(f"Successfully extracted {question_count} form fields using fallback model")
+            return result
+            
+        except Exception as model2_error:
+            current_app.logger.error(f"Fallback model extraction also failed: {str(model2_error)}")
+            raise Exception(f"Failed to extract form fields with multiple models: {str(model2_error)}")
     
     except Exception as e:
         current_app.logger.error(f"Error extracting fields from image: {str(e)}")
