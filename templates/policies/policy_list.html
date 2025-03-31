@@ -104,7 +104,19 @@
 
 {% block scripts %}
 <script>
+    // Store the modals to prevent repeated initialization
+    let modalInstances = {};
+    
     document.addEventListener('DOMContentLoaded', function() {
+        // Pre-initialize all modals to prevent flickering
+        const allModals = document.querySelectorAll('.modal');
+        allModals.forEach(modalEl => {
+            modalInstances[modalEl.id] = new bootstrap.Modal(modalEl, {
+                backdrop: 'static',
+                keyboard: false
+            });
+        });
+        
         // Search functionality
         const searchInput = document.getElementById('policy-search');
         const policyCards = document.querySelectorAll('.policy-card');
@@ -127,17 +139,19 @@
         // Fix delete button flickering
         const deleteButtons = document.querySelectorAll('.delete-button');
         deleteButtons.forEach(button => {
+            // Remove the data-bs-toggle and data-bs-target attributes
+            const modalId = button.getAttribute('data-bs-target').substring(1); // Remove the # prefix
+            button.removeAttribute('data-bs-toggle');
+            button.removeAttribute('data-bs-target');
+            
             button.addEventListener('click', function(e) {
-                // Prevent default action and event propagation
                 e.preventDefault();
                 e.stopPropagation();
                 
-                // Get the target modal ID from the button's data attribute
-                const modalId = this.getAttribute('data-bs-target');
-                
-                // Show the modal using Bootstrap's Modal API
-                const modal = new bootstrap.Modal(document.querySelector(modalId));
-                modal.show();
+                // Use the stored modal instance
+                if (modalInstances[modalId]) {
+                    modalInstances[modalId].show();
+                }
             });
         });
         
@@ -149,6 +163,7 @@
                 
                 // Find the modal this form is in
                 const modal = this.closest('.modal');
+                const modalId = modal.id;
                 
                 // Get the form action URL
                 const url = this.getAttribute('action');
@@ -163,9 +178,10 @@
                 })
                 .then(response => {
                     if (response.ok) {
-                        // Hide the modal
-                        const bsModal = bootstrap.Modal.getInstance(modal);
-                        bsModal.hide();
+                        // Hide the modal using stored instance
+                        if (modalInstances[modalId]) {
+                            modalInstances[modalId].hide();
+                        }
                         
                         // Remove the card from the page
                         const docId = url.split('/').pop();
