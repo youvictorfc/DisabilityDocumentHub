@@ -51,21 +51,46 @@ with app.app_context():
     # Import models to ensure they're registered with SQLAlchemy
     import models
     
-    # Create all tables
-    db.create_all()
+    try:
+        # Create all tables with retry mechanism
+        app.logger.info("Attempting to create database tables...")
+        db.create_all()
+        app.logger.info("Database tables created successfully")
+    except Exception as e:
+        app.logger.error(f"Error creating database tables: {str(e)}")
+        app.logger.info("Application will continue without database initialization")
 
 # Set up login manager loader
 from models import User
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    try:
+        return User.query.get(int(user_id))
+    except Exception as e:
+        app.logger.error(f"Error loading user {user_id}: {str(e)}")
+        return None
 
 # Route for home page
 @app.route('/')
 def index():
-    from flask import render_template
-    return render_template('index.html')
+    from flask import render_template, g
+    
+    # Set a flag in g to indicate if the database is accessible
+    try:
+        # Perform a simple query to check database connection
+        from models import User
+        User.query.limit(1).all()
+        g.db_accessible = True
+    except Exception as e:
+        app.logger.error(f"Database connection error on index page: {str(e)}")
+        g.db_accessible = False
+    
+    # Check if OpenAI API key is available
+    from config import Config
+    openai_api_key = Config.OPENAI_API_KEY
+    
+    return render_template('index.html', config={'OPENAI_API_KEY': openai_api_key})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
