@@ -41,10 +41,12 @@ login_manager.login_view = 'auth.login'
 from controllers.auth_controller import auth_bp
 from controllers.form_controller import form_bp
 from controllers.policy_controller import policy_bp
+from controllers.admin_controller import admin_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(form_bp)
 app.register_blueprint(policy_bp)
+app.register_blueprint(admin_bp)
 
 # Initialize database
 with app.app_context():

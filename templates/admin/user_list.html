@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+
+{% block title %}User Management - Minto Disability Services{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1>User Management</h1>
+        <p class="lead">Manage user accounts and permissions</p>
+    </div>
+</div>
+
+<!-- User list table -->
+<div class="card mb-4">
+    <div class="card-header" style="background-color: var(--minto-teal); color: white;">
+        <h5 class="card-title mb-0">All Users</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Created</th>
+                        <th>Admin Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            <span class="badge {% if user.is_admin %}bg-success{% else %}bg-secondary{% endif %}" id="admin-badge-{{ user.id }}">
+                                {% if user.is_admin %}Admin{% else %}Regular User{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            {% if user.id != current_user.id %}
+                            <button class="btn btn-sm {% if user.is_admin %}btn-danger{% else %}btn-success{% endif %} toggle-admin-btn"
+                                    data-user-id="{{ user.id }}" 
+                                    data-username="{{ user.username }}"
+                                    data-current-status="{{ user.is_admin }}">
+                                {% if user.is_admin %}
+                                Remove Admin Status
+                                {% else %}
+                                Make Admin
+                                {% endif %}
+                            </button>
+                            {% else %}
+                            <span class="text-muted">Current User</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmActionBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggleButtons = document.querySelectorAll('.toggle-admin-btn');
+        const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+        const confirmMessage = document.getElementById('confirmMessage');
+        const confirmActionBtn = document.getElementById('confirmActionBtn');
+        
+        let currentUserId = null;
+        let isCurrentlyAdmin = false;
+        
+        toggleButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const userId = this.getAttribute('data-user-id');
+                const username = this.getAttribute('data-username');
+                const isAdmin = this.getAttribute('data-current-status') === 'True';
+                
+                currentUserId = userId;
+                isCurrentlyAdmin = isAdmin;
+                
+                if (isAdmin) {
+                    confirmMessage.innerHTML = `Are you sure you want to remove admin privileges from <strong>${username}</strong>?`;
+                    confirmActionBtn.classList.remove('btn-success');
+                    confirmActionBtn.classList.add('btn-danger');
+                } else {
+                    confirmMessage.innerHTML = `Are you sure you want to make <strong>${username}</strong> an admin? This will grant them full access to all administrative functions.`;
+                    confirmActionBtn.classList.remove('btn-danger');
+                    confirmActionBtn.classList.add('btn-success');
+                }
+                
+                confirmModal.show();
+            });
+        });
+        
+        confirmActionBtn.addEventListener('click', function() {
+            if (!currentUserId) return;
+            
+            fetch(`/admin/users/${currentUserId}/toggle-admin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to update admin status');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Update UI
+                    const button = document.querySelector(`.toggle-admin-btn[data-user-id="${currentUserId}"]`);
+                    const badge = document.getElementById(`admin-badge-${currentUserId}`);
+                    
+                    if (data.is_admin) {
+                        // User is now an admin
+                        button.classList.remove('btn-success');
+                        button.classList.add('btn-danger');
+                        button.textContent = 'Remove Admin Status';
+                        badge.classList.remove('bg-secondary');
+                        badge.classList.add('bg-success');
+                        badge.textContent = 'Admin';
+                    } else {
+                        // User is no longer an admin
+                        button.classList.remove('btn-danger');
+                        button.classList.add('btn-success');
+                        button.textContent = 'Make Admin';
+                        badge.classList.remove('bg-success');
+                        badge.classList.add('bg-secondary');
+                        badge.textContent = 'Regular User';
+                    }
+                    
+                    button.setAttribute('data-current-status', data.is_admin.toString());
+                    
+                    // Show a flash message
+                    const flashContainer = document.querySelector('.container.mt-3');
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                    alertDiv.innerHTML = `
+                        ${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    flashContainer.appendChild(alertDiv);
+                } else {
+                    alert('Error: ' + data.message);
+                }
+                
+                confirmModal.hide();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred: ' + error.message);
+                confirmModal.hide();
+            });
+        });
+    });
+</script>
+{% endblock %}
