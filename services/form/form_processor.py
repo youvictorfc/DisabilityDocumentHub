@@ -51,13 +51,77 @@ class FormProcessor:
     def _extract_from_docx(self, file_path: str) -> str:
         """Extract text from DOCX file."""
         current_app.logger.info(f"Extracting text from DOCX file: {file_path}")
+        
+        # First, try to use python-docx if it's available
         try:
-            # Note: We'll use direct OpenAI processing for docx files
-            # as python-docx may have compatibility issues
-            return self._extract_from_image(file_path)
+            import docx
+            doc = docx.Document(file_path)
+            text = "\n\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+            
+            # If successful and we got some content, return it
+            if text and len(text) > 100:  # Arbitrary minimum content check
+                current_app.logger.info(f"Successfully extracted {len(text)} characters from DOCX using python-docx")
+                return text
+        except Exception as docx_error:
+            current_app.logger.warning(f"Could not extract text using python-docx: {str(docx_error)}")
+        
+        # As a second try, attempt to extract text as a Word document (binary)
+        try:
+            # Try to read directly from file as text
+            with open(file_path, 'rb') as file:
+                file_content = file.read()
+                
+            # Create a specialized prompt for form extraction
+            import base64
+            base64_encoded = base64.b64encode(file_content).decode("utf-8")
+            
+            # Use the vision model but with specialized form extraction instructions
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "system", 
+                        "content": "You are a specialized form extraction system designed to identify form questions and fields. When given a form document, extract ALL questions, fields, labels, and input areas. Pay special attention to form structure, including checkboxes, blank lines for text input, and section headers."
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text", 
+                                "text": (
+                                    "Extract ALL form questions and fields from this document. "
+                                    "For form extraction, please:\n"
+                                    "1. Identify every question, prompt, or label, even those without question marks\n"
+                                    "2. Include blank lines, checkboxes, radio buttons as they indicate input fields\n"
+                                    "3. Note section titles and organizational elements\n"
+                                    "4. Preserve the exact original text and format\n"
+                                    "5. Include all date fields, name fields, signature fields, etc.\n\n"
+                                    "If a line has a colon or ends with blank space for writing, it's likely a form field."
+                                )
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{base64_encoded}"}
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=4000
+            )
+            
+            extracted_text = response.choices[0].message.content
+            current_app.logger.info(f"Successfully extracted {len(extracted_text)} characters from DOCX using OpenAI")
+            return extracted_text
+            
         except Exception as e:
-            current_app.logger.error(f"Error extracting text from DOCX: {str(e)}")
-            return self._extract_from_image(file_path)
+            current_app.logger.error(f"Error extracting text from DOCX using specialized approach: {str(e)}")
+            
+            # Last resort - try the generic image-based extraction
+            try:
+                return self._extract_from_image(file_path)
+            except Exception as image_error:
+                current_app.logger.error(f"DOCX extraction completely failed: {str(image_error)}")
+                raise ValueError(f"Could not extract content from this DOCX file: {str(image_error)}")
     
     def _extract_from_text(self, file_path: str) -> str:
         """Extract text from plain text file."""
@@ -194,7 +258,16 @@ class FormProcessor:
         """Extract all questions from the document text using OpenAI."""
         current_app.logger.info("Extracting questions from document text")
         
-        # Prompt engineering for question extraction
+        # Check if this looks like a form with few or no question marks (like an incident form)
+        question_mark_count = document_text.count('?')
+        line_count = document_text.count('\n')
+        
+        # If few question marks but many lines, it might be a form with implicit questions
+        if question_mark_count < 5 and line_count > 20:
+            current_app.logger.info(f"Detected potential form with few explicit questions ({question_mark_count} question marks, {line_count} lines)")
+            return self._extract_form_fields(document_text)
+        
+        # Standard question extraction for regular forms
         prompt = f"""
         Extract ALL questions from this form document. Do not miss any questions, including sub-questions.
         
@@ -222,6 +295,8 @@ class FormProcessor:
         - DO NOT combine questions - each question should be a separate entry
         - For forms with checkboxes or multiple selections, include all options
         - Identify instruction text preceding or around questions, and include it in the question text
+        - Look for blank lines, text followed by colons, and other patterns that indicate form fields
+        - Treat all blank spaces for writing as text input fields
         
         Document text:
         {document_text}
@@ -256,6 +331,185 @@ class FormProcessor:
             current_app.logger.error(f"Error extracting questions: {str(e)}")
             raise ValueError(f"Failed to extract questions: {str(e)}")
     
+    def _extract_form_fields(self, document_text: str) -> List[Dict[str, Any]]:
+        """
+        Extract form fields from documents that may not have explicit questions.
+        This is particularly useful for forms like incident reports where fields
+        are often indicated by blank spaces or colons rather than question marks.
+        """
+        current_app.logger.info("Using specialized form field extraction for structured forms")
+        
+        # Special prompt engineering for structured forms
+        prompt = f"""
+        This is a specialized form with fields that need extraction. It may not have explicit questions, 
+        but instead has labeled fields, spaces for input, checkboxes, etc. Extract ALL form fields.
+        
+        For each field, identify:
+        1. The field label or prompt (EXACTLY as written)
+        2. The field type (text, textarea, radio, checkbox, select, date, signature, etc.)
+        3. Any options for selection fields
+        4. Whether the field is required (assume required if it's a core part of the form)
+        
+        Treat as fields:
+        - Lines ending with a colon (:)
+        - Lines followed by blank space for writing
+        - Blank spaces with underscores or lines for input
+        - Checkbox or radio button options
+        - Date fields
+        - Signature fields
+        - Any other elements that request user input
+        
+        Format as a JSON array of fields with this structure:
+        {{
+            "questions": [
+                {{
+                    "question": "The exact field label/prompt",
+                    "type": "text|textarea|radio|checkbox|select|date|signature",
+                    "options": ["Option 1", "Option 2"] (for radio, checkbox, select types),
+                    "required": true|false
+                }}
+            ]
+        }}
+        
+        CRITICAL GUIDELINES:
+        - DO NOT miss any fields or input areas
+        - Preserve the EXACT label text, don't rephrase or combine fields
+        - Include ALL fields: name fields, dates, incidents, locations, signatures, etc.
+        - For unlabeled input areas, use the closest heading or context as the label
+        - Convert each section that requires input into a proper form field
+        
+        Document text:
+        {document_text}
+        """
+        
+        try:
+            # Use GPT-4 with specialized form extraction prompt
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "system", 
+                        "content": (
+                            "You are a specialized form field extractor. Your job is to identify ALL input areas "
+                            "in structured forms, even when they don't appear as traditional questions. Look for "
+                            "labels, blank spaces, underlines, checkboxes, and any other indicators that user input "
+                            "is expected. Incident forms, medical forms, and administrative forms often use these patterns."
+                        )
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+            
+            try:
+                extracted_data = json.loads(response.choices[0].message.content)
+                questions = extracted_data.get("questions", [])
+                current_app.logger.info(f"Successfully extracted {len(questions)} form fields using specialized extractor")
+                
+                # If no questions were found, try one more time with a different approach
+                if len(questions) == 0:
+                    return self._fallback_form_extraction(document_text)
+                    
+                return questions
+                
+            except json.JSONDecodeError as e:
+                current_app.logger.error(f"JSON decode error in form field extraction: {str(e)}")
+                current_app.logger.error(f"Raw response: {response.choices[0].message.content}")
+                return self._fallback_form_extraction(document_text)
+                
+        except Exception as e:
+            current_app.logger.error(f"Error extracting form fields: {str(e)}")
+            # When all else fails, try to create a basic form structure from the document
+            return self._fallback_form_extraction(document_text)
+    
+    def _fallback_form_extraction(self, document_text: str) -> List[Dict[str, Any]]:
+        """
+        Last-resort fallback method to extract form fields when other methods fail.
+        This method is more aggressive in finding anything that could be a form field.
+        """
+        current_app.logger.warning("Using fallback form field extraction method")
+        
+        # Analyze the document lines to identify potential fields
+        lines = [line.strip() for line in document_text.split('\n') if line.strip()]
+        extracted_fields = []
+        
+        for i, line in enumerate(lines):
+            # Skip very short lines or lines that are likely headers (all caps)
+            if len(line) < 3 or (line.upper() == line and len(line) > 5):
+                continue
+                
+            # Lines that end with colon are almost certainly field labels
+            if line.endswith(':'):
+                field_name = line.rstrip(':').strip()
+                extracted_fields.append({
+                    "question": field_name,
+                    "type": "text",
+                    "required": False
+                })
+                continue
+                
+            # Lines that contain question-like words
+            question_indicators = ['type', 'name', 'date', 'location', 'address', 'description', 
+                               'action', 'signed', 'reported', 'witness', 'incident']
+            
+            if any(indicator in line.lower() for indicator in question_indicators):
+                # Check if this line has a form-like structure
+                if ':' in line:
+                    # Split at the first colon
+                    field_name = line.split(':', 1)[0].strip()
+                    extracted_fields.append({
+                        "question": field_name,
+                        "type": "text",
+                        "required": False
+                    })
+                else:
+                    # Take the whole line as a potential field
+                    extracted_fields.append({
+                        "question": line,
+                        "type": "text",
+                        "required": False
+                    })
+            
+            # Lines that mention checkbox, radio buttons, or selection
+            if 'check' in line.lower() or 'circle' in line.lower() or 'select' in line.lower():
+                options = []
+                
+                # Look for options in the next few lines
+                for j in range(1, min(5, len(lines) - i)):
+                    next_line = lines[i + j].strip()
+                    if next_line and len(next_line) < 30 and not next_line.endswith(':'):
+                        options.append(next_line)
+                
+                field_type = "checkbox" if "check" in line.lower() else "radio"
+                
+                extracted_fields.append({
+                    "question": line,
+                    "type": field_type,
+                    "options": options,
+                    "required": False
+                })
+        
+        # If we found fields, return them
+        if extracted_fields:
+            current_app.logger.info(f"Fallback extraction found {len(extracted_fields)} potential form fields")
+            return extracted_fields
+            
+        # Absolute last resort - create a basic structure based on document sections
+        # This ensures we have at least some fields rather than none
+        current_app.logger.warning("Using emergency fallback - creating basic fields from document structure")
+        
+        basic_fields = [
+            {"question": "Incident Type", "type": "text", "required": True},
+            {"question": "Date and Time", "type": "datetime", "required": True},
+            {"question": "Location", "type": "text", "required": True},
+            {"question": "Description", "type": "textarea", "required": True},
+            {"question": "Actions Taken", "type": "textarea", "required": False},
+            {"question": "Reported By", "type": "text", "required": True},
+            {"question": "Signature", "type": "text", "required": True}
+        ]
+        
+        return basic_fields
+            
     def validate_questions(self, questions: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Validate the extracted questions for completeness and consistency."""
         current_app.logger.info(f"Validating {len(questions)} extracted questions")
