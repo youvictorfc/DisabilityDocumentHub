@@ -1,4 +1,4 @@
-// Form handling functionality
+// Form handling functionality - Full form display version
 
 document.addEventListener('DOMContentLoaded', function() {
     // Get form elements
@@ -18,12 +18,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const responseId = formContainer.dataset.responseId;
     const initialAnswers = JSON.parse(formContainer.dataset.answers || '{}');
     
-    // Form state - we no longer need currentQuestionIndex since we're showing all questions at once
+    // Form state
     let answers = {...initialAnswers};
     let questions = formData.questions || [];
-    
-    // For backward compatibility with old code only
-    let currentQuestionIndex = 0;
     
     // Initialize the form
     function initForm() {
@@ -35,12 +32,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show all form questions at once
         renderEntireForm();
         
-        // Hide navigation since all questions are shown at once
-        updateNavigationForFullForm();
+        // Update navigation
+        updateNavigation();
     }
     
     // Render the entire form at once
     function renderEntireForm() {
+        console.log("Rendering entire form with", questions.length, "questions");
+        
         // Create a form that displays all questions at once
         let formHTML = '<div class="full-form">';
         
@@ -189,51 +188,12 @@ document.addEventListener('DOMContentLoaded', function() {
         progressBar.setAttribute('aria-valuenow', 100);
         
         // Add event listeners to all inputs
-        setupAllInputListeners();
+        setupInputListeners();
     }
     
-    // Set up input event listeners for a single question
-    function setupInputListeners(question) {
-        const questionId = question.id;
-        const fieldType = question.field_type || question.type || "text";
-        
-        switch (fieldType) {
-            case 'radio':
-                const radioInputs = document.querySelectorAll(`input[name="input-${questionId}"]`);
-                radioInputs.forEach(input => {
-                    input.addEventListener('change', function() {
-                        answers[questionId] = this.value;
-                    });
-                });
-                break;
-                
-            case 'checkbox':
-                const checkboxInputs = document.querySelectorAll(`input[name="input-${questionId}"]`);
-                checkboxInputs.forEach(input => {
-                    input.addEventListener('change', function() {
-                        // Get all checked values
-                        const checkedValues = Array.from(checkboxInputs)
-                            .filter(cb => cb.checked)
-                            .map(cb => cb.value);
-                        
-                        answers[questionId] = checkedValues;
-                    });
-                });
-                break;
-                
-            default:
-                const input = document.getElementById(`input-${questionId}`);
-                if (input) {
-                    input.addEventListener('input', function() {
-                        answers[questionId] = this.value;
-                    });
-                }
-        }
-    }
-    
-    // Set up input event listeners for all questions
-    function setupAllInputListeners() {
-        // Set up listeners for all text, number, email, date, and textarea inputs
+    // Set up event listeners for all form inputs
+    function setupInputListeners() {
+        // Set up listeners for text inputs, textareas, selects
         document.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input[type="date"], textarea, select').forEach(input => {
             if (input.dataset.questionId) {
                 input.addEventListener('input', function() {
@@ -243,7 +203,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Set up listeners for all radio inputs
+        // Set up listeners for radio inputs
         questions.forEach(question => {
             const questionId = question.id;
             const fieldType = question.field_type || question.type || "text";
@@ -271,57 +231,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Update navigation buttons (for step-by-step navigation)
+    // Update navigation buttons for the full form display
     function updateNavigation() {
-        // Disable/enable previous button
-        prevButton.disabled = currentQuestionIndex === 0;
-        
-        // Update next/submit button
-        if (currentQuestionIndex >= questions.length - 1) {
-            nextButton.style.display = 'none';
-            submitButton.style.display = 'block';
-        } else {
-            nextButton.style.display = 'block';
-            submitButton.style.display = 'none';
-        }
-    }
-    
-    // Update navigation for full form display
-    function updateNavigationForFullForm() {
-        // Hide previous and next buttons since all questions are displayed at once
+        // Hide previous and next buttons since we're showing all questions at once
         prevButton.style.display = 'none';
         nextButton.style.display = 'none';
         
-        // Show the submit button
+        // Show the submit button immediately since all questions are displayed
         submitButton.style.display = 'block';
     }
     
-    // Show the completion screen
-    function showCompletionScreen() {
-        questionContainer.innerHTML = `
-            <div class="text-center">
-                <h3>Form Complete</h3>
-                <p>Please review your answers before submitting.</p>
-                <div class="mt-4">
-                    <button id="review-button" class="btn btn-secondary">Review Answers</button>
-                </div>
-            </div>
-        `;
-        
-        // Update progress
-        progressBar.style.width = '100%';
-        progressBar.setAttribute('aria-valuenow', 100);
-        
-        // Add review button listener
-        document.getElementById('review-button').addEventListener('click', showReviewScreen);
-        
-        // Update navigation
-        prevButton.disabled = false;
-        nextButton.style.display = 'none';
-        submitButton.style.display = 'block';
-    }
-    
-    // Show the review screen
+    // Show the review screen with all answers
     function showReviewScreen() {
         let reviewHTML = `
             <div class="review-container">
@@ -412,6 +332,44 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Submit the completed form
     function submitForm() {
+        // Validate all required fields
+        const requiredFields = questions.filter(q => q.required);
+        const missingFields = [];
+        
+        requiredFields.forEach(question => {
+            const questionId = question.id;
+            const value = answers[questionId];
+            
+            if (!value || (Array.isArray(value) && value.length === 0)) {
+                missingFields.push(question);
+                
+                // Highlight the missing field
+                const inputElement = document.getElementById(`input-${questionId}`);
+                if (inputElement) {
+                    inputElement.classList.add('is-invalid');
+                    
+                    // Add validation message if not exists
+                    if (!document.getElementById(`validation-${questionId}`)) {
+                        const validationDiv = document.createElement('div');
+                        validationDiv.id = `validation-${questionId}`;
+                        validationDiv.className = 'invalid-feedback';
+                        validationDiv.textContent = 'This field is required.';
+                        inputElement.parentNode.appendChild(validationDiv);
+                    }
+                }
+            }
+        });
+        
+        if (missingFields.length > 0) {
+            // Scroll to the first missing field
+            const firstMissingFieldId = missingFields[0].id;
+            const firstMissingElement = document.getElementById(`input-${firstMissingFieldId}`);
+            if (firstMissingElement) {
+                firstMissingElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return;
+        }
+        
         // Show loading state
         submitButton.disabled = true;
         submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
@@ -434,7 +392,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <h4>Form Submitted Successfully!</h4>
                         <p>Thank you for completing this form.</p>
                         ${data.email_sent ? 
-                            '<p>A copy of your completed form has been emailed to you.</p>' : 
+                            '<p>A copy of your completed form has been emailed to you and Minto Disability Services.</p>' : 
                             '<p>Note: We were unable to email a copy of your form.</p>'}
                         <div class="mt-4">
                             <a href="/forms" class="btn btn-primary">Return to Forms</a>
@@ -479,24 +437,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Event listeners for navigation (these are now hidden in full form view, but keeping the code for completeness)
-    prevButton.addEventListener('click', function() {
-        if (currentQuestionIndex > 0) {
-            currentQuestionIndex--;
-            renderEntireForm();
-            updateNavigationForFullForm();
-            saveProgress();
-        }
-    });
-    
-    nextButton.addEventListener('click', function() {
-        // In full form view, next and prev buttons are hidden
-        // Keeping this code in case we need to switch back to step-by-step form
-        saveProgress();
-    });
-    
+    // Event listeners
     saveButton.addEventListener('click', saveProgress);
-    
     submitButton.addEventListener('click', submitForm);
     
     // Auto-save every 30 seconds
@@ -507,6 +449,6 @@ document.addEventListener('DOMContentLoaded', function() {
         clearInterval(autoSaveInterval);
     });
     
-    // Initialize form
+    // Initialize the form
     initForm();
 });
