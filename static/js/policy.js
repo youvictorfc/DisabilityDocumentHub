@@ -47,12 +47,24 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById(loadingId).remove();
             
             if (data.success) {
-                // Format sources if available
+                // Format sources if available - deduplicate them by title
                 let sourcesHtml = '';
                 if (data.sources && data.sources.length > 0) {
-                    sourcesHtml = '<div class="message-sources">Sources:<ul>';
+                    // Create a deduplicated set of source titles
+                    const uniqueSources = new Map();
                     data.sources.forEach(source => {
-                        sourcesHtml += `<li>${source.document_title} (${source.document_type})</li>`;
+                        const sourceKey = `${source.document_title} (${source.document_type})`;
+                        // Only keep the highest scoring instance of each source
+                        if (!uniqueSources.has(sourceKey) || 
+                            source.relevance_score > uniqueSources.get(sourceKey).relevance_score) {
+                            uniqueSources.set(sourceKey, source);
+                        }
+                    });
+                    
+                    // Format the unique sources
+                    sourcesHtml = '<div class="message-sources">Sources:<ul>';
+                    uniqueSources.forEach((source, sourceKey) => {
+                        sourcesHtml += `<li>${sourceKey}</li>`;
                     });
                     sourcesHtml += '</ul></div>';
                 }
