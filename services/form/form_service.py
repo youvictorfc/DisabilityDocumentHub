@@ -7,14 +7,17 @@ def extract_form_structure(file_path):
     """
     Extract form structure from a document file.
     This is a multi-step process:
-    1. Parse the raw form document to identify all fields
-    2. Structure the questions into a step-by-step flow
+    1. Parse the raw form document to identify all fields EXACTLY as they appear in the original
+    2. Structure into a step-by-step flow while preserving the EXACT original text and order
+    
+    CRITICAL: Questions must remain exactly as they appear in the uploaded form - same wording, format and order.
+    No form questions should be changed, reworded, improved, or reordered during processing.
     """
     try:
         # Log the start of form extraction
-        current_app.logger.info(f"Starting form extraction for file: {file_path}")
+        current_app.logger.info(f"Starting EXACT form extraction for file: {file_path}")
         
-        # Step 1: Parse the form document to identify fields
+        # Step 1: Parse the document to extract the EXACT fields as they appear in the original
         parsed_form = parse_form_document(file_path)
         
         # Log how many questions were found in the initial parsing
@@ -41,20 +44,30 @@ def extract_form_structure(file_path):
                 ]
             }
         
-        # Step 2: Generate a step-by-step flow of questions
-        current_app.logger.info("Generating sequential question flow...")
+        # Step 2: Ensure the EXACT order and text of questions is maintained
+        current_app.logger.info("Processing questions while preserving EXACT text and order...")
         structured_questions = generate_form_questions(parsed_form)
         
-        # Validate the structured questions
+        # Validate the structured questions to ensure none were lost or modified
         final_questions_count = len(structured_questions.get('questions', []))
         current_app.logger.info(f"Final structured form has {final_questions_count} questions")
         
-        if final_questions_count < questions_count:
-            current_app.logger.warning(f"Some questions may have been lost in structuring. Initial: {questions_count}, Final: {final_questions_count}")
-            # If we lost questions in the process, use the original parsed form
-            # but ensure it has the proper structure for the frontend
-            if 'questions' in parsed_form and len(parsed_form['questions']) > final_questions_count:
-                current_app.logger.info("Using original parsed form to preserve all questions")
+        # ALWAYS use the original parsed form if ANY questions were lost or modified
+        if final_questions_count != questions_count:
+            current_app.logger.warning(f"Question count mismatch! Initial: {questions_count}, Final: {final_questions_count}")
+            current_app.logger.info("Using original parsed form to ensure ALL questions are preserved in their EXACT form")
+            return parsed_form
+        
+        # Also check if any question texts were modified
+        original_questions = parsed_form.get('questions', [])
+        final_questions = structured_questions.get('questions', [])
+        
+        for i in range(min(len(original_questions), len(final_questions))):
+            orig_text = original_questions[i].get('question_text', '')
+            final_text = final_questions[i].get('question_text', '')
+            
+            if orig_text != final_text:
+                current_app.logger.warning(f"Question text was modified during processing. Using original parsed form.")
                 return parsed_form
         
         return structured_questions

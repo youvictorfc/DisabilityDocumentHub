@@ -55,10 +55,10 @@ def extract_form_fields_from_image(image_path):
                 {
                     "role": "system",
                     "content": (
-                        "You are a form extraction expert for Minto Disability Services. "
-                        "Your task is to analyze the provided image of a form and extract ALL form fields/questions. "
-                        "Be extremely thorough and don't miss ANY fields. Include every field present in the form, "
-                        "even if it seems minor or standard. Extract each field with its label, type, and whether it's required."
+                        "You are a form extraction expert for Minto Disability Services with special focus on EXACT field extraction. "
+                        "Your task is to analyze the provided image of a form and extract ALL form fields/questions EXACTLY as they appear in the original. "
+                        "IMPORTANT: Do NOT rephrase, modify, combine, or add any questions. Preserve the original text, formatting, and order exactly. "
+                        "Extract the precise label text for every field. Do not summarize or generalize fields. Be extremely literal in your extraction."
                     )
                 },
                 {
@@ -66,15 +66,15 @@ def extract_form_fields_from_image(image_path):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Here's an image of a form. Please extract all form fields (questions) that need to be filled out. "
-                            "Be comprehensive and identify every field visible, including headers, subheaders, and all questions. "
-                            "Format your response as a structured JSON with a 'questions' array where each question includes: "
-                            "1. A unique 'id' (based on the field name) "
-                            "2. 'question_text' (the exact text of the field/question) "
+                            "text": "Here's an image of a form. Your task is to extract ALL fields EXACTLY as they appear in the original form, maintaining the original wording, order, and structure. "
+                            "Don't try to improve, clarify, or reorganize the form - I need the EXACT original form fields. "
+                            "Format your response as a structured JSON with a 'questions' array in the SAME ORDER as they appear on the form. Include: "
+                            "1. A unique 'id' (use a simple index number or field name without modifying the text) "
+                            "2. 'question_text' (the EXACT and COMPLETE text of the field/question as it appears on the form, including any numbering or formatting) "
                             "3. 'field_type' (text, textarea, date, checkbox, radio, select, email, etc.) "
-                            "4. 'options' array (for checkbox, radio, select fields) "
-                            "5. 'required' (true/false - assume any field with an asterisk or otherwise marked as required is true) "
-                            "Don't miss ANY fields."
+                            "4. 'options' array (EXACT options text for checkbox, radio, select fields) "
+                            "5. 'required' (true/false - based on asterisks or 'required' markers) "
+                            "Do not skip ANY fields. Do not merge fields. Do not improve or reword the questions."
                         },
                         {
                             "type": "image_url",
@@ -191,16 +191,18 @@ def parse_form_document(file_path):
                 {
                     "role": "system",
                     "content": (
-                        "You are a form parsing assistant for Minto Disability Services. Your task is to extract ALL questions and fields from the provided form document. "
-                        "Be extremely thorough and don't miss ANY fields or questions. "
+                        "You are a form parsing assistant for Minto Disability Services with special focus on EXACT field extraction. "
+                        "Your task is to extract ALL questions and fields from the provided form document EXACTLY as they appear in the original. "
+                        "IMPORTANT: Do NOT rephrase, modify, combine, or add any questions. Preserve the original text, formatting, and order exactly. "
+                        "Extract the precise label text for every field. Do not summarize or generalize fields. Be extremely literal in your extraction. "
                         "For each field, identify: "
-                        "1. A unique 'id' (based on the field name) "
-                        "2. The question or field label as 'question_text' (make it descriptive and clear) "
-                        "3. The 'field_type' (text, checkbox, radio, select, textarea, date, email, number, etc.) "
-                        "4. Any available 'options' (for checkboxes, radios, selects) as an array "
+                        "1. A unique 'id' (use a simple index number or field name without modifying the text) "
+                        "2. 'question_text' (the EXACT and COMPLETE text of the field/question as it appears on the form, including any numbering or formatting) "
+                        "3. 'field_type' (text, checkbox, radio, select, textarea, date, email, number, etc.) "
+                        "4. 'options' array (EXACT options text for checkbox, radio, select fields) "
                         "5. Whether the field is 'required' (boolean - assume any field with an asterisk or otherwise marked as required is true) "
-                        "Return this in a structured JSON format with a 'questions' array containing each field. "
-                        "Don't combine or abbreviate any questions. Include all header and instruction text as well."
+                        "Return this in a structured JSON format with a 'questions' array in the SAME ORDER as they appear on the form. "
+                        "Do not skip ANY fields. Do not merge fields. Do not improve or reword the questions."
                     )
                 },
                 {
@@ -238,20 +240,23 @@ def generate_form_questions(form_structure):
                 {
                     "role": "system",
                     "content": (
-                        "You are a form design assistant. Convert the provided form structure into a step-by-step "
-                        "sequential flow of questions. Make sure to include ALL questions from the original form - "
-                        "do not skip or combine any questions. It's critical that you preserve every single field. "
-                        "Each question should include: id, question_text, field_type, options (if applicable), and whether "
-                        "it's required. The output must be a JSON object with a 'questions' array containing all fields. "
-                        "The number of questions in your output should match the number in the input."
+                        "You are a form processing assistant with a focus on EXACT preservation. "
+                        "Your task is to ensure the questions in the form retain their EXACT original text and order. "
+                        "Do NOT modify, improve, or reword ANY questions. "
+                        "Do NOT add new questions or merge existing ones. "
+                        "Do NOT change the order of questions from the original form. "
+                        "Each question must keep its exact text with the same capitalization, punctuation, and formatting. "
+                        "The output must match the input exactly in both question text and order. "
+                        "This is critical for compliance and legal purposes."
                     )
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Here's a form with {original_question_count} questions/fields. "
-                        f"Please organize them into a sequential flow, preserving ALL fields. "
-                        f"Your output must contain ALL {original_question_count} questions in the 'questions' array. "
+                        f"This form has {original_question_count} questions that must be preserved EXACTLY as they are. "
+                        f"Do not rewrite, improve, or modify the questions in any way. Do not change their order. "
+                        f"The form structure and questions must be kept with 100% fidelity to the original. "
+                        f"Simply convert the input to proper format with 'questions' array containing ALL {original_question_count} questions with their exact wording. "
                         f"Form structure: {json.dumps(form_structure)}"
                     )
                 }

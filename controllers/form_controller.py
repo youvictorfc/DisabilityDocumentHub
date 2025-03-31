@@ -67,8 +67,13 @@ def upload_form():
         file.save(file_path)
         
         try:
-            # Extract form structure using OpenAI
+            # Extract form structure using OpenAI - preserve EXACT questions and order
+            current_app.logger.info(f"Extracting EXACT form structure from {file_path}")
             form_structure = extract_form_structure(file_path)
+            
+            # Log the number of questions extracted
+            questions_count = len(form_structure.get('questions', []))
+            current_app.logger.info(f"Successfully extracted {questions_count} questions in their exact original form")
             
             # Create form record
             new_form = Form(
