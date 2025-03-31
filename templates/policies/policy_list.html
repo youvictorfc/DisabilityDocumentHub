@@ -55,7 +55,38 @@
                             onclick="window.location.href='{{ url_for('policy.policy_assistant') }}?query=Tell me about {{ document.title }}'">
                         <i class="bi bi-question-circle me-1"></i>Ask About
                     </button>
+                    {% if current_user.is_admin %}
+                    <button type="button" class="btn btn-danger btn-sm" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#deletePolicyModal{{ document.id }}">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                    {% endif %}
                 </div>
+                
+                {% if current_user.is_admin %}
+                <!-- Delete confirmation modal -->
+                <div class="modal fade" id="deletePolicyModal{{ document.id }}" tabindex="-1" aria-labelledby="deletePolicyModalLabel{{ document.id }}" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="deletePolicyModalLabel{{ document.id }}">Confirm Deletion</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Are you sure you want to delete the document <strong>"{{ document.title }}"</strong>?</p>
+                                <p class="text-danger">This will permanently delete the document, its content, and file.</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <form action="{{ url_for('policy.delete_policy', document_id=document.id) }}" method="post">
+                                    <button type="submit" class="btn btn-danger">Delete Document</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}

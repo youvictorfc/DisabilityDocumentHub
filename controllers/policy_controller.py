@@ -129,3 +129,35 @@ def query_assistant():
     except Exception as e:
         current_app.logger.error(f"Policy assistant error: {str(e)}")
         return jsonify({'success': False, 'message': f'Error processing query: {str(e)}'}), 500
+
+@policy_bp.route('/<int:document_id>/delete', methods=['POST'])
+@login_required
+def delete_policy(document_id):
+    """Delete a policy document and its associated file and chunks"""
+    if not current_user.is_admin:
+        flash('Only administrators can delete policy documents', 'danger')
+        return redirect(url_for('policy.policy_list'))
+    
+    document = Document.query.get_or_404(document_id)
+    
+    try:
+        # Delete document file if it exists
+        if document.file_path and os.path.exists(document.file_path):
+            os.remove(document.file_path)
+            current_app.logger.info(f"Deleted document file: {document.file_path}")
+        
+        # Delete all document chunks (the document chunks will be automatically deleted due to cascade="all, delete-orphan")
+        
+        # Delete document from database
+        db.session.delete(document)
+        db.session.commit()
+        
+        flash(f'Document "{document.title}" has been deleted', 'success')
+        current_app.logger.info(f"Document ID {document_id} deleted successfully")
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting document: {str(e)}")
+        flash(f'Error deleting document: {str(e)}', 'danger')
+    
+    return redirect(url_for('policy.policy_list'))

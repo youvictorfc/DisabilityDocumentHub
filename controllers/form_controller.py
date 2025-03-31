@@ -348,3 +348,44 @@ def submit_form(response_id):
     except Exception as e:
         current_app.logger.error(f"Form submission error: {str(e)}")
         return jsonify({'success': False, 'message': f'Error submitting form: {str(e)}'}), 500
+
+@form_bp.route('/<int:form_id>/delete', methods=['POST'])
+@login_required
+def delete_form(form_id):
+    """Delete a form and its associated file"""
+    if not current_user.is_admin:
+        flash('Only administrators can delete forms', 'danger')
+        return redirect(url_for('form.form_list'))
+    
+    form = Form.query.get_or_404(form_id)
+    
+    try:
+        # Delete form file if it exists
+        if form.file_path and os.path.exists(form.file_path):
+            os.remove(form.file_path)
+            current_app.logger.info(f"Deleted form file: {form.file_path}")
+        
+        # Delete form responses and their associated PDF files
+        responses = FormResponse.query.filter_by(form_id=form_id).all()
+        for response in responses:
+            # Delete PDF if it exists
+            if response.pdf_path and os.path.exists(response.pdf_path):
+                os.remove(response.pdf_path)
+                current_app.logger.info(f"Deleted response PDF: {response.pdf_path}")
+            
+            # Delete response
+            db.session.delete(response)
+        
+        # Delete form
+        db.session.delete(form)
+        db.session.commit()
+        
+        flash(f'Form "{form.title}" and all associated responses have been deleted', 'success')
+        current_app.logger.info(f"Form ID {form_id} deleted successfully")
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting form: {str(e)}")
+        flash(f'Error deleting form: {str(e)}', 'danger')
+    
+    return redirect(url_for('form.form_list'))

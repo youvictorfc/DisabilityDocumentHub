@@ -46,11 +46,42 @@
                         Last updated: {{ form.updated_at.strftime('%Y-%m-%d %H:%M') }}
                     </p>
                 </div>
-                <div class="card-footer bg-transparent border-0 d-flex">
+                <div class="card-footer bg-transparent border-0 d-flex justify-content-between">
                     <a href="{{ url_for('form.fill_form', form_id=form.form_id) }}" class="btn btn-primary btn-sm">
                         <i class="bi bi-pencil-square me-1"></i>Continue Form
                     </a>
+                    {% if current_user.is_admin %}
+                    <button type="button" class="btn btn-danger btn-sm" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#deleteFormModal{{ form.form_id }}">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                    {% endif %}
                 </div>
+                
+                {% if current_user.is_admin %}
+                <!-- Delete confirmation modal for in-progress forms -->
+                <div class="modal fade" id="deleteFormModal{{ form.form_id }}" tabindex="-1" aria-labelledby="deleteFormModalLabel{{ form.form_id }}" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="deleteFormModalLabel{{ form.form_id }}">Confirm Deletion</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Are you sure you want to delete the form <strong>"{{ form.form_title }}"</strong>?</p>
+                                <p class="text-danger">This will permanently delete the form, all responses, and associated files.</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <form action="{{ url_for('form.delete_form', form_id=form.form_id) }}" method="post">
+                                    <button type="submit" class="btn btn-danger">Delete Form</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -70,11 +101,42 @@
                     <h5 class="card-title">{{ form.title }}</h5>
                     <p class="card-text">{{ form.description }}</p>
                 </div>
-                <div class="card-footer bg-transparent border-0 d-flex">
+                <div class="card-footer bg-transparent border-0 d-flex justify-content-between">
                     <a href="{{ url_for('form.fill_form', form_id=form.id) }}" class="btn btn-primary btn-sm">
                         <i class="bi bi-pencil-square me-1"></i>Fill Form
                     </a>
+                    {% if current_user.is_admin %}
+                    <button type="button" class="btn btn-danger btn-sm" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#deleteFormModal{{ form.id }}">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                    {% endif %}
                 </div>
+                
+                {% if current_user.is_admin %}
+                <!-- Delete confirmation modal -->
+                <div class="modal fade" id="deleteFormModal{{ form.id }}" tabindex="-1" aria-labelledby="deleteFormModalLabel{{ form.id }}" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="deleteFormModalLabel{{ form.id }}">Confirm Deletion</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Are you sure you want to delete the form <strong>"{{ form.title }}"</strong>?</p>
+                                <p class="text-danger">This will permanently delete the form, all responses, and associated files.</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <form action="{{ url_for('form.delete_form', form_id=form.id) }}" method="post">
+                                    <button type="submit" class="btn btn-danger">Delete Form</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
