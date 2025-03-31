@@ -152,12 +152,29 @@ def delete_policy(document_id):
         db.session.delete(document)
         db.session.commit()
         
-        flash(f'Document "{document.title}" has been deleted', 'success')
         current_app.logger.info(f"Document ID {document_id} deleted successfully")
+        
+        # Check if this is an AJAX request
+        is_ajax_request = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        
+        if is_ajax_request:
+            return jsonify({
+                'success': True,
+                'message': f'Document "{document.title}" deleted successfully'
+            })
+        else:
+            flash(f'Document "{document.title}" has been deleted', 'success')
+            return redirect(url_for('policy.policy_list'))
         
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error deleting document: {str(e)}")
-        flash(f'Error deleting document: {str(e)}', 'danger')
-    
-    return redirect(url_for('policy.policy_list'))
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'success': False,
+                'message': f'Error deleting document: {str(e)}'
+            }), 500
+        else:
+            flash(f'Error deleting document: {str(e)}', 'danger')
+            return redirect(url_for('policy.policy_list'))

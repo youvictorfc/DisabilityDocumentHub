@@ -380,12 +380,29 @@ def delete_form(form_id):
         db.session.delete(form)
         db.session.commit()
         
-        flash(f'Form "{form.title}" and all associated responses have been deleted', 'success')
         current_app.logger.info(f"Form ID {form_id} deleted successfully")
+        
+        # Check if this is an AJAX request
+        is_ajax_request = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        
+        if is_ajax_request:
+            return jsonify({
+                'success': True,
+                'message': f'Form "{form.title}" deleted successfully'
+            })
+        else:
+            flash(f'Form "{form.title}" and all associated responses have been deleted', 'success')
+            return redirect(url_for('form.form_list'))
         
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error deleting form: {str(e)}")
-        flash(f'Error deleting form: {str(e)}', 'danger')
-    
-    return redirect(url_for('form.form_list'))
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'success': False,
+                'message': f'Error deleting form: {str(e)}'
+            }), 500
+        else:
+            flash(f'Error deleting form: {str(e)}', 'danger')
+            return redirect(url_for('form.form_list'))

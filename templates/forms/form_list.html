@@ -35,8 +35,8 @@
     <h3>Continue Where You Left Off</h3>
     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
         {% for form in in_progress_forms %}
-        <div class="col">
-            <div class="card h-100">
+        <div class="col in-progress-form-card">
+            <div class="card h-100" data-form-id="{{ form.form_id }}">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <h5 class="card-title">{{ form.form_title }}</h5>
@@ -74,8 +74,8 @@
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <form action="{{ url_for('form.delete_form', form_id=form.form_id) }}" method="post">
-                                    <button type="submit" class="btn btn-danger">Delete Form</button>
+                                <form action="{{ url_for('form.delete_form', form_id=form.form_id) }}" method="post" class="delete-form">
+                                    <button type="submit" class="btn btn-danger delete-confirm-button">Delete Form</button>
                                 </form>
                             </div>
                         </div>
@@ -96,7 +96,7 @@
     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
         {% for form in forms %}
         <div class="col form-card" data-form-title="{{ form.title }}">
-            <div class="card h-100">
+            <div class="card h-100" data-form-id="{{ form.id }}">
                 <div class="card-body">
                     <h5 class="card-title">{{ form.title }}</h5>
                     <p class="card-text">{{ form.description }}</p>
@@ -129,8 +129,8 @@
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <form action="{{ url_for('form.delete_form', form_id=form.id) }}" method="post">
-                                    <button type="submit" class="btn btn-danger">Delete Form</button>
+                                <form action="{{ url_for('form.delete_form', form_id=form.id) }}" method="post" class="delete-form">
+                                    <button type="submit" class="btn btn-danger delete-confirm-button">Delete Form</button>
                                 </form>
                             </div>
                         </div>
@@ -186,6 +186,55 @@
                 // Show the modal using Bootstrap's Modal API
                 const modal = new bootstrap.Modal(document.querySelector(modalId));
                 modal.show();
+            });
+        });
+        
+        // Handle delete form submission without page refresh
+        const deleteForms = document.querySelectorAll('.delete-form');
+        deleteForms.forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Find the modal this form is in
+                const modal = this.closest('.modal');
+                
+                // Get the form action URL
+                const url = this.getAttribute('action');
+                
+                // Send a POST request
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Hide the modal
+                        const bsModal = bootstrap.Modal.getInstance(modal);
+                        bsModal.hide();
+                        
+                        // Remove the card from the page
+                        const formId = url.split('/').pop();
+                        const cardToRemove = document.querySelector(`.card[data-form-id="${formId}"]`);
+                        if (cardToRemove) {
+                            cardToRemove.closest('.col').remove();
+                        } else {
+                            // Reload the page if we can't find the card
+                            window.location.reload();
+                        }
+                    } else {
+                        // Show error message
+                        console.error('Failed to delete form');
+                        // Reload the page on error
+                        window.location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    window.location.reload();
+                });
             });
         });
     });
