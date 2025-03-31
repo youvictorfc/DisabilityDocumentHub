@@ -230,80 +230,61 @@ def generate_form_questions(form_structure):
         # Get the OpenAI client
         client = get_openai_client()
         
+        # Validate input
+        if not form_structure or not isinstance(form_structure, dict):
+            logging.error(f"Invalid form structure: {form_structure}")
+            # Return a standardized version of the input or an empty structure
+            return {'questions': []}
+        
         # Count the original number of questions
-        original_question_count = len(form_structure.get('questions', []))
+        original_questions = form_structure.get('questions', [])
+        original_question_count = len(original_questions)
+        
+        # If there are no questions, return an empty structure
+        if original_question_count == 0:
+            logging.warning("No questions found in form structure")
+            return {'questions': []}
+            
         current_app.logger.info(f"Organizing {original_question_count} questions into a sequential flow")
         
-        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-        # do not change this unless explicitly requested by the user
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a form processing assistant with a focus on EXACT preservation. "
-                        "Your task is to ensure the questions in the form retain their EXACT original text and order. "
-                        "Do NOT modify, improve, or reword ANY questions. "
-                        "Do NOT add new questions or merge existing ones. "
-                        "Do NOT change the order of questions from the original form. "
-                        "Each question must keep its exact text with the same capitalization, punctuation, and formatting. "
-                        "The output must match the input exactly in both question text and order. "
-                        "This is critical for compliance and legal purposes. "
-                        "Output must be formatted as JSON."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        f"This form has {original_question_count} questions that must be preserved EXACTLY as they are. "
-                        f"Do not rewrite, improve, or modify the questions in any way. Do not change their order. "
-                        f"The form structure and questions must be kept with 100% fidelity to the original. "
-                        f"Return your output as JSON with a 'questions' array containing ALL {original_question_count} questions with their exact wording. "
-                        f"Form structure: {json.dumps(form_structure)}"
-                    )
-                }
-            ],
-            response_format={"type": "json_object"}
-        )
-        
-        result = json.loads(response.choices[0].message.content)
-        
-        # Verify that all questions are preserved
-        result_question_count = len(result.get('questions', []))
-        current_app.logger.info(f"Structured flow has {result_question_count} questions")
-        
-        # If questions were lost, use the original structure but ensure it has consistent field names
-        if result_question_count < original_question_count:
-            current_app.logger.warning(f"Questions were lost in the structuring process. Original: {original_question_count}, Result: {result_question_count}")
-            current_app.logger.info("Falling back to original structure with field name standardization")
-            
-            # Standardize field names in the original structure
-            standardized_questions = []
-            for q in form_structure.get('questions', []):
-                # Make a copy of the question to avoid modifying the original
+        # Skip OpenAI processing and directly standardize the original questions
+        # This ensures we keep the exact original structure without any changes
+        standardized_questions = []
+        for q in original_questions:
+            # Skip if the question is None or not a dictionary
+            if not q or not isinstance(q, dict):
+                continue
+                
+            # Make a copy of the question to avoid modifying the original
+            try:
                 standardized_q = q.copy()
-                
-                # Ensure question_text field exists
-                if 'question_text' not in standardized_q:
-                    standardized_q['question_text'] = standardized_q.get('question') or standardized_q.get('label') or standardized_q.get('text') or f"Question {standardized_q.get('id', 'unknown')}"
-                
-                # Ensure field_type field exists
-                if 'field_type' not in standardized_q:
-                    standardized_q['field_type'] = standardized_q.get('type') or 'text'
-                
-                # Ensure id field exists
-                if 'id' not in standardized_q:
-                    # Generate an ID based on the question text
-                    text = standardized_q['question_text']
-                    standardized_q['id'] = text.lower().replace(' ', '_')[:30]
-                
-                standardized_questions.append(standardized_q)
+            except:
+                # If we can't copy the question, create a new dict
+                standardized_q = {}
             
-            return {'questions': standardized_questions}
+            # Ensure question_text field exists
+            if 'question_text' not in standardized_q:
+                standardized_q['question_text'] = standardized_q.get('question') or standardized_q.get('label') or standardized_q.get('text') or f"Question {len(standardized_questions) + 1}"
             
-        return result
-    
+            # Ensure field_type field exists
+            if 'field_type' not in standardized_q:
+                standardized_q['field_type'] = standardized_q.get('type') or 'text'
+            
+            # Ensure id field exists
+            if 'id' not in standardized_q:
+                # Generate an ID based on the question text
+                text = str(standardized_q.get('question_text', '')).strip()
+                standardized_q['id'] = text.lower().replace(' ', '_')[:30] or f"question_{len(standardized_questions) + 1}"
+            
+            # Ensure options exists for appropriate field types
+            if standardized_q['field_type'] in ['radio', 'checkbox', 'select'] and 'options' not in standardized_q:
+                standardized_q['options'] = []
+                
+            standardized_questions.append(standardized_q)
+        
+        current_app.logger.info(f"Standardized {len(standardized_questions)} questions without modifying text or order")
+        return {'questions': standardized_questions}
+        
     except Exception as e:
         logging.error(f"Error generating form questions: {str(e)}")
         raise Exception(f"Failed to generate questions: {str(e)}")
