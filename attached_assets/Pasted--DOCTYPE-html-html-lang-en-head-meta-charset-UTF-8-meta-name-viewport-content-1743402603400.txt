@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ form.form_name }} - Question {{ question_number }}/{{ total_questions }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{ form.form_name }}</h1>
+            <div class="progress-bar">
+                <div class="progress" style="width: {{ (question_number / total_questions) * 100 }}%"></div>
+            </div>
+            <p class="progress-text">Question {{ question_number }} of {{ total_questions }}</p>
+        </header>
+        
+        <main>
+            <form method="POST" action="{{ url_for('form.fill_form', form_id=form.form_id) }}">
+                <div class="question-container">
+                    <h2 class="question-text">{{ question.question }}</h2>
+                    
+                    {% if question.type == 'text' %}
+                        <input type="text" name="answer" id="answer" class="form-input" required>
+                    {% elif question.type == 'textarea' %}
+                        <textarea name="answer" id="answer" class="form-textarea" rows="4" required></textarea>
+                    {% elif question.type == 'multiple_choice' %}
+                        {% for option in question.options %}
+                            <div class="option">
+                                <input type="radio" name="answer" id="option_{{ loop.index }}" value="{{ option }}" required>
+                                <label for="option_{{ loop.index }}">{{ option }}</label>
+                            </div>
+                        {% endfor %}
+                    {% elif question.type == 'yes_no' %}
+                        <div class="option">
+                            <input type="radio" name="answer" id="option_yes" value="Yes" required>
+                            <label for="option_yes">Yes</label>
+                        </div>
+                        <div class="option">
+                            <input type="radio" name="answer" id="option_no" value="No" required>
+                            <label for="option_no">No</label>
+                        </div>
+                    {% elif question.type == 'date' %}
+                        <input type="date" name="answer" id="answer" class="form-input" required>
+                    {% else %}
+                        <input type="text" name="answer" id="answer" class="form-input" required>
+                    {% endif %}
+                </div>
+                
+                <div class="button-container">
+                    {% if question_number > 1 %}
+                        <a href="javascript:history.back()" class="btn btn-secondary">Previous</a>
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary">Next</button>
+                </div>
+                
+                <div class="save-container">
+                    <button type="button" id="save-progress" class="btn btn-text">Save Progress</button>
+                </div>
+            </form>
+        </main>
+    </div>
+    
+    <script>
+        // Save progress functionality
+        document.getElementById('save-progress').addEventListener('click', function() {
+            // Store current form state
+            const formData = new FormData(document.querySelector('form'));
+            
+            // Send AJAX request to save progress
+            fetch('{{ url_for("form.save_progress", form_id=form.form_id) }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Progress saved successfully!');
+                } else {
+                    alert('Failed to save progress.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while saving progress.');
+            });
+        });
+    </script>
+</body>
+</html>

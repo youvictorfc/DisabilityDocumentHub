@@ -1,0 +1,170 @@
+from flask import Blueprint, render_template, request, session, redirect, url_for, jsonify
+from services.form import FormProcessor
+from models.form import FormModel
+import os
+from datetime import datetime
+import json
+
+# Create a Blueprint for form routes
+form_bp = Blueprint('form', __name__)
+
+# Initialize form processor
+form_processor = FormProcessor(os.environ.get('OPENAI_API_KEY'))
+form_model = FormModel()  # Database model for forms
+
+@form_bp.route('/forms', methods=['GET'])
+def list_forms():
+    """List all available forms."""
+    forms = form_model.get_all_forms()
+    return render_template('forms/list.html', forms=forms)
+
+@form_bp.route('/forms/upload', methods=['GET', 'POST'])
+def upload_form():
+    """Handle form upload by administrators."""
+    if request.method == 'POST':
+        if 'form_file' not in request.files:
+            return jsonify({"error": "No file part"}), 400
+            
+        file = request.files['form_file']
+        form_name = request.form.get('form_name', 'Untitled Form')
+        
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+            
+        # Save the file temporarily
+        temp_file_path = os.path.join('uploads', f"{datetime.now().timestamp()}_{file.filename}")
+        os.makedirs('uploads', exist_ok=True)
+        file.save(temp_file_path)
+        
+        try:
+            # Process the form
+            form_data = form_processor.process_form(temp_file_path, form_name)
+            
+            # Save to database
+            form_id = form_model.save_form(form_data)
+            
+            # Clean up temporary file
+            os.remove(temp_file_path)
+            
+            return jsonify({
+                "success": True,
+                "form_id": form_id,
+                "message": f"Form '{form_name}' processed successfully with {len(form_data['questions'])} questions."
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    return render_template('forms/upload.html')
+
+@form_bp.route('/forms/<form_id>/start', methods=['GET'])
+def start_form(form_id):
+    """Initialize a form filling session."""
+    form = form_model.get_form_by_id(form_id)
+    
+    if not form:
+        return redirect(url_for('form.list_forms'))
+    
+    # Initialize form session
+    session['current_form'] = form_id
+    session['form_progress'] = {
+        'current_question': 0,
+        'answers': {},
+        'started_at': datetime.now().isoformat()
+    }
+    
+    return redirect(url_for('form.fill_form', form_id=form_id))
+
+@form_bp.route('/forms/<form_id>/fill', methods=['GET', 'POST'])
+def fill_form(form_id):
+    """Handle sequential form filling."""
+    # Check if the form exists
+    form = form_model.get_form_by_id(form_id)
+    if not form:
+        return redirect(url_for('form.list_forms'))
+    
+    # Check if session exists
+    if 'current_form' not in session or session['current_form'] != form_id:
+        return redirect(url_for('form.start_form', form_id=form_id))
+    
+    # Get current progress
+    progress = session.get('form_progress', {})
+    current_question_index = progress.get('current_question', 0)
+    
+    # Check if form is complete
+    if current_question_index >= len(form['questions']):
+        return redirect(url_for('form.review_form', form_id=form_id))
+    
+    # Get current question
+    current_question = form['questions'][current_question_index]
+    
+    if request.method == 'POST':
+        # Save answer
+        answer = request.form.get('answer', '')
+        progress['answers'][current_question['id']] = answer
+        
+        # Move to next question
+        progress['current_question'] = current_question_index + 1
+        session['form_progress'] = progress
+        
+        # Save progress to database
+        form_model.save_progress(form_id, session.get('user_id'), progress)
+        
+        return redirect(url_for('form.fill_form', form_id=form_id))
+    
+    return render_template('forms/fill.html', 
+                          form=form, 
+                          question=current_question, 
+                          progress=progress,
+                          question_number=current_question_index + 1,
+                          total_questions=len(form['questions']))
+
+@form_bp.route('/forms/<form_id>/review', methods=['GET', 'POST'])
+def review_form(form_id):
+    """Review form answers before submission."""
+    # Check if the form exists
+    form = form_model.get_form_by_id(form_id)
+    if not form:
+        return redirect(url_for('form.list_forms'))
+    
+    # Check if session exists
+    if 'current_form' not in session or session['current_form'] != form_id:
+        return redirect(url_for('form.start_form', form_id=form_id))
+    
+    # Get current progress
+    progress = session.get('form_progress', {})
+    answers = progress.get('answers', {})
+    
+    if request.method == 'POST':
+        # Generate PDF
+        pdf_path = form_model.generate_pdf(form_id, answers)
+        
+        # Send email
+        admin_email = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
+        form_model.send_form_email(form_id, pdf_path, admin_email)
+        
+        # Mark form as complete
+        form_model.mark_form_complete(form_id, session.get('user_id'))
+        
+        # Clear form session
+        session.pop('current_form', None)
+        session.pop('form_progress', None)
+        
+        return redirect(url_for('form.confirmation', form_id=form_id))
+    
+    # Prepare questions with answers for review
+    questions_with_answers = []
+    for q in form['questions']:
+        questions_with_answers.append({
+            'question': q['question'],
+            'answer': answers.get(q['id'], '')
+        })
+    
+    return render_template('forms/review.html', 
+                          form=form, 
+                          questions=questions_with_answers)
+
+@form_bp.route('/forms/<form_id>/confirmation', methods=['GET'])
+def confirmation(form_id):
+    """Show confirmation page after form submission."""
+    form = form_model.get_form_by_id(form_id)
+    return render_template('forms/confirmation.html', form=form)

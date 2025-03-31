@@ -67,30 +67,78 @@ def upload_form():
         file.save(file_path)
         
         try:
+            # First make sure the upload directory exists
+            os.makedirs(current_app.config['FORM_UPLOAD_FOLDER'], exist_ok=True)
+            
             # Extract form structure using OpenAI - preserve EXACT questions and order
             current_app.logger.info(f"Extracting EXACT form structure from {file_path}")
-            form_structure = extract_form_structure(file_path)
             
-            # Log the number of questions extracted
-            questions_count = len(form_structure.get('questions', []))
-            current_app.logger.info(f"Successfully extracted {questions_count} questions in their exact original form")
+            # Process with enhanced error handling
+            try:
+                # Use a timeout to prevent hanging on large files
+                form_structure = extract_form_structure(file_path)
+                
+                # Log the extracted structure for debugging
+                current_app.logger.debug(f"Extracted form structure: {json.dumps(form_structure)[:500]}...")
+                
+                # Validate the extracted structure
+                questions_count = len(form_structure.get('questions', []))
+                current_app.logger.info(f"Successfully extracted {questions_count} questions in their exact original form")
+                
+                # Check if we have a reasonable number of questions
+                if questions_count == 0:
+                    raise ValueError("No questions could be extracted from the form document. Please try a different file or format.")
+                
+                # Check that questions have required fields
+                missing_fields = []
+                for i, question in enumerate(form_structure.get('questions', [])):
+                    if not question.get('question_text') and not question.get('question') and not question.get('label'):
+                        missing_fields.append(f"Question #{i+1} is missing required text field")
+                    if not question.get('id'):
+                        missing_fields.append(f"Question #{i+1} is missing a required ID")
+                
+                if missing_fields:
+                    raise ValueError(f"Form structure validation failed: {'. '.join(missing_fields)}")
+                
+            except Exception as extraction_error:
+                current_app.logger.error(f"Form extraction error: {str(extraction_error)}")
+                flash(f'Error extracting form: {str(extraction_error)}', 'danger')
+                
+                # Clean up the file
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                return render_template('forms/form_upload.html')
             
-            # Create form record
+            # Create form record with additional metadata
             new_form = Form(
                 title=title,
                 description=description,
                 file_path=file_path,
-                structure=json.dumps(form_structure)
+                structure=json.dumps(form_structure),
+                created_at=datetime.utcnow()
             )
             
             db.session.add(new_form)
             db.session.commit()
             
-            flash('Form uploaded successfully', 'success')
+            # Provide detailed success feedback
+            flash(f'Form "{title}" uploaded successfully with {questions_count} questions extracted.', 'success')
+            current_app.logger.info(f"Form ID {new_form.id} saved to database with {questions_count} questions")
+            
             return redirect(url_for('form.form_list'))
             
         except Exception as e:
+            current_app.logger.error(f"Error processing form: {str(e)}")
             flash(f'Error processing form: {str(e)}', 'danger')
+            
+            # Clean up the file on error
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    current_app.logger.info(f"Cleaned up file {file_path} after error")
+                except Exception as cleanup_error:
+                    current_app.logger.error(f"Error cleaning up file: {str(cleanup_error)}")
+            
             return render_template('forms/form_upload.html')
     
     return render_template('forms/form_upload.html')
@@ -190,47 +238,69 @@ def submit_form(response_id):
             'missing_fields': validation_result['missing_fields']
         }), 400
     
-    # Generate PDF
+    # Generate PDF with better error handling
     try:
-        pdf_filename = f"form_{form.id}_user_{current_user.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+        # Ensure the PDF output directory exists
+        os.makedirs(current_app.config['PDF_OUTPUT_FOLDER'], exist_ok=True)
+        
+        # Create a descriptive filename with form title, user info, and timestamp
+        safe_title = secure_filename(form.title)
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        pdf_filename = f"{safe_title}_form{form.id}_user{current_user.id}_{timestamp}.pdf"
         pdf_path = os.path.join(current_app.config['PDF_OUTPUT_FOLDER'], pdf_filename)
         
-        generate_pdf_from_form(form.title, form_structure, answers, pdf_path)
+        current_app.logger.info(f"Generating PDF for form submission: {pdf_path}")
         
-        # Update response
+        # Try to generate the PDF
+        try:
+            generate_pdf_from_form(form.title, form_structure, answers, pdf_path)
+            current_app.logger.info(f"PDF successfully generated: {pdf_path}")
+        except Exception as pdf_error:
+            current_app.logger.error(f"PDF generation failed: {str(pdf_error)}")
+            raise ValueError(f"Could not generate PDF: {str(pdf_error)}")
+        
+        # Mark the form as complete
         response.answers = json.dumps(answers)
         response.is_complete = True
         response.pdf_path = pdf_path
         response.submitted_at = datetime.utcnow()
         db.session.commit()
+        current_app.logger.info(f"Form response {response.id} marked as complete")
         
-        # Send email with PDF to both the user and Minto Disability Services
-        try:
-            # Send to the user
-            send_form_email(
-                recipient_email=current_user.email,
-                form_title=form.title,
-                pdf_path=pdf_path
-            )
-            
-            # Also ensure it goes to Minto Disability Services
-            minto_email = "hello@mintodisabilityservices.com.au"
-            if current_user.email.lower() != minto_email.lower():
-                send_form_email(
-                    recipient_email=minto_email,
-                    form_title=f"{form.title} - Submitted by {current_user.username}",
-                    pdf_path=pdf_path
-                )
-            
+        # Prepare form data for context
+        form_data = {
+            'form_id': form.id,
+            'form_title': form.title,
+            'user_id': current_user.id,
+            'user_email': current_user.email,
+            'user_name': current_user.username,
+            'submitted_at': datetime.utcnow().isoformat(),
+            'question_count': len(form_structure.get('questions', [])),
+            'answered_count': len(answers)
+        }
+        
+        # Send email with PDF to the user
+        email_result = send_form_email(
+            recipient_email=current_user.email,
+            form_title=form.title,
+            pdf_path=pdf_path,
+            form_data=form_data
+        )
+        
+        # Log the email sending result
+        if email_result.get('success'):
+            current_app.logger.info(f"Form '{form.title}' submitted successfully and email sent")
             email_sent = True
-        except Exception as e:
+        else:
+            current_app.logger.warning(f"Form '{form.title}' submitted but email could not be sent: {email_result.get('message')}")
             email_sent = False
-            current_app.logger.error(f"Email sending failed: {str(e)}")
         
+        # Return success response
         return jsonify({
             'success': True,
             'message': 'Form submitted successfully',
-            'email_sent': email_sent
+            'email_sent': email_sent,
+            'email_details': email_result
         })
         
     except Exception as e:

@@ -1,0 +1,209 @@
+import sqlite3
+import json
+import os
+from datetime import datetime
+from fpdf import FPDF
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+
+class FormModel:
+    """Database model for storing and retrieving forms and responses."""
+    
+    def __init__(self, db_path='database.db'):
+        self.db_path = db_path
+        self._create_tables()
+    
+    def _create_tables(self):
+        """Create necessary tables if they don't exist."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Create forms table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS forms (
+            form_id TEXT PRIMARY KEY,
+            form_name TEXT NOT NULL,
+            form_data TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        ''')
+        
+        # Create form_responses table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS form_responses (
+            response_id TEXT PRIMARY KEY,
+            form_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            response_data TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (form_id) REFERENCES forms (form_id)
+        )
+        ''')
+        
+        conn.commit()
+        conn.close()
+    
+    def save_form(self, form_data):
+        """Save a form to the database."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "INSERT INTO forms (form_id, form_name, form_data, created_at) VALUES (?, ?, ?, ?)",
+            (
+                form_data['form_id'],
+                form_data['form_name'],
+                json.dumps(form_data),
+                datetime.now().isoformat()
+            )
+        )
+        
+        conn.commit()
+        conn.close()
+        
+        return form_data['form_id']
+    
+    def get_all_forms(self):
+        """Get all forms from the database."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT form_id, form_name, created_at FROM forms ORDER BY created_at DESC")
+        forms = [dict(row) for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return forms
+    
+    def get_form_by_id(self, form_id):
+        """Get a form by its ID."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT form_data FROM forms WHERE form_id = ?", (form_id,))
+        row = cursor.fetchone()
+        
+        conn.close()
+        
+        if row:
+            return json.loads(row['form_data'])
+        return None
+    
+    def save_progress(self, form_id, user_id, progress_data):
+        """Save form progress to the database."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Check if response exists
+        cursor.execute(
+            "SELECT response_id FROM form_responses WHERE form_id = ? AND user_id = ? AND status = 'in_progress'",
+            (form_id, user_id)
+        )
+        existing_response = cursor.fetchone()
+        
+        now = datetime.now().isoformat()
+        
+        if existing_response:
+            # Update existing response
+            cursor.execute(
+                "UPDATE form_responses SET response_data = ?, updated_at = ? WHERE response_id = ?",
+                (json.dumps(progress_data), now, existing_response[0])
+            )
+        else:
+            # Create new response
+            response_id = f"resp_{form_id}_{user_id}_{now}"
+            cursor.execute(
+                "INSERT INTO form_responses (response_id, form_id, user_id, response_data, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (response_id, form_id, user_id, json.dumps(progress_data), 'in_progress', now, now)
+            )
+        
+        conn.commit()
+        conn.close()
+    
+    def mark_form_complete(self, form_id, user_id):
+        """Mark a form as complete."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "UPDATE form_responses SET status = 'completed', updated_at = ? WHERE form_id = ? AND user_id = ? AND status = 'in_progress'",
+            (datetime.now().isoformat(), form_id, user_id)
+        )
+        
+        conn.commit()
+        conn.close()
+    
+    def generate_pdf(self, form_id, answers):
+        """Generate a PDF from form responses."""
+        # Get form data
+        form = self.get_form_by_id(form_id)
+        
+        # Create PDF
+        pdf = FPDF()
+        pdf.add_page()
+        
+        # Add title
+        pdf.set_font('Arial', 'B', 16)
+        pdf.cell(0, 10, form['form_name'], 0, 1, 'C')
+        pdf.ln(10)
+        
+        # Add questions and answers
+        pdf.set_font('Arial', 'B', 12)
+        for question in form['questions']:
+            q_id = question['id']
+            pdf.cell(0, 10, question['question'], 0, 1)
+            pdf.set_font('Arial', '', 12)
+            pdf.multi_cell(0, 10, str(answers.get(q_id, 'No answer provided')), 0, 1)
+            pdf.set_font('Arial', 'B', 12)
+            pdf.ln(5)
+        
+        # Save PDF
+        os.makedirs('pdfs', exist_ok=True)
+        pdf_path = os.path.join('pdfs', f"{form_id}_{datetime.now().timestamp()}.pdf")
+        pdf.output(pdf_path)
+        
+        return pdf_path
+    
+    def send_form_email(self, form_id, pdf_path, admin_email):
+        """Send a completed form via email."""
+        form = self.get_form_by_id(form_id)
+        
+        # Create email
+        msg = MIMEMultipart()
+        msg['From'] = os.environ.get('EMAIL_FROM', 'noreply@example.com')
+        msg['To'] = admin_email
+        msg['Subject'] = f"Completed Form: {form['form_name']}"
+        
+        # Add body
+        body = f"A new form has been completed: {form['form_name']}\n\nPlease find the attached PDF."
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Add attachment
+        with open(pdf_path, 'rb') as f:
+            attach = MIMEApplication(f.read(), _subtype='pdf')
+            attach.add_header('Content-Disposition', 'attachment', filename=os.path.basename(pdf_path))
+            msg.attach(attach)
+        
+        # Send email
+        try:
+            smtp_server = os.environ.get('SMTP_SERVER', 'smtp.example.com')
+            smtp_port = int(os.environ.get('SMTP_PORT', 587))
+            smtp_username = os.environ.get('SMTP_USERNAME', '')
+            smtp_password = os.environ.get('SMTP_PASSWORD', '')
+            
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(smtp_username, smtp_password)
+            server.send_message(msg)
+            server.quit()
+            
+            return True
+        except Exception as e:
+            print(f"Email sending failed: {str(e)}")
+            return False

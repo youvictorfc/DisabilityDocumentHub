@@ -1,7 +1,15 @@
 import json
 import logging
+import os
+from datetime import datetime
 from flask import current_app
 from services.ai.openai_service import parse_form_document, generate_form_questions
+from services.form.form_processor import FormProcessor
+
+def get_form_processor():
+    """Get or create a FormProcessor instance."""
+    openai_api_key = current_app.config.get('OPENAI_API_KEY')
+    return FormProcessor(openai_api_key)
 
 def extract_form_structure(file_path):
     """
@@ -17,17 +25,42 @@ def extract_form_structure(file_path):
         # Log the start of form extraction
         current_app.logger.info(f"Starting EXACT form extraction for file: {file_path}")
         
-        # Step 1: Parse the document to extract the EXACT fields as they appear in the original
-        parsed_form = parse_form_document(file_path)
+        # Use the enhanced FormProcessor for better extraction
+        form_processor = get_form_processor()
+        form_name = os.path.basename(file_path)
         
-        # Log how many questions were found in the initial parsing
-        questions_count = len(parsed_form.get('questions', []))
-        current_app.logger.info(f"Initial parsing found {questions_count} questions/fields")
+        # Process the form using our enhanced processor
+        current_app.logger.info(f"Processing form document using enhanced FormProcessor: {file_path}")
+        form_data = form_processor.process_form(file_path, form_name)
+        
+        # Extract the form structure
+        form_structure = form_data.get('structure')
+        
+        # Get validation results
+        validation = form_data.get('validation', {})
+        is_complete = validation.get('complete', True)
+        
+        # Log validation issues
+        if not is_complete:
+            issues = validation.get('issues', [])
+            current_app.logger.warning("Form validation identified potential issues:")
+            for issue in issues:
+                current_app.logger.warning(f" - {issue}")
+                
+            missed_questions = validation.get('missed_questions', [])
+            if missed_questions:
+                current_app.logger.warning("Potentially missed questions:")
+                for missed in missed_questions:
+                    current_app.logger.warning(f" - {missed}")
+        
+        # Check if any questions were found
+        questions = form_structure.get('questions', [])
+        questions_count = len(questions)
         
         if questions_count == 0:
             current_app.logger.error("No questions were extracted from the form. Using a fallback form template.")
             # Create a simple fallback form if no questions were found
-            parsed_form = {
+            form_structure = {
                 "questions": [
                     {
                         "id": "form_name",
@@ -43,34 +76,8 @@ def extract_form_structure(file_path):
                     }
                 ]
             }
-        
-        # Step 2: Ensure the EXACT order and text of questions is maintained
-        current_app.logger.info("Processing questions while preserving EXACT text and order...")
-        structured_questions = generate_form_questions(parsed_form)
-        
-        # Validate the structured questions to ensure none were lost or modified
-        final_questions_count = len(structured_questions.get('questions', []))
-        current_app.logger.info(f"Final structured form has {final_questions_count} questions")
-        
-        # ALWAYS use the original parsed form if ANY questions were lost or modified
-        if final_questions_count != questions_count:
-            current_app.logger.warning(f"Question count mismatch! Initial: {questions_count}, Final: {final_questions_count}")
-            current_app.logger.info("Using original parsed form to ensure ALL questions are preserved in their EXACT form")
-            return parsed_form
-        
-        # Also check if any question texts were modified
-        original_questions = parsed_form.get('questions', [])
-        final_questions = structured_questions.get('questions', [])
-        
-        for i in range(min(len(original_questions), len(final_questions))):
-            orig_text = original_questions[i].get('question_text', '')
-            final_text = final_questions[i].get('question_text', '')
             
-            if orig_text != final_text:
-                current_app.logger.warning(f"Question text was modified during processing. Using original parsed form.")
-                return parsed_form
-        
-        return structured_questions
+        return form_structure
     
     except Exception as e:
         logging.error(f"Error extracting form structure: {str(e)}")

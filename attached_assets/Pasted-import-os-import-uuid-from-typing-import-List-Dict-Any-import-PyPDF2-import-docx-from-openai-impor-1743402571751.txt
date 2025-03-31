@@ -1,0 +1,138 @@
+import os
+import uuid
+from typing import List, Dict, Any
+import PyPDF2
+import docx
+from openai import OpenAI
+import json
+
+class FormProcessor:
+    """Service for processing forms, extracting questions, and managing form structure."""
+    
+    def __init__(self, openai_api_key: str):
+        self.client = OpenAI(api_key=openai_api_key)
+        
+    def extract_text_from_document(self, file_path: str) -> str:
+        """Extract text content from a document (PDF or DOCX)."""
+        file_extension = os.path.splitext(file_path)[1].lower()
+        
+        if file_extension == '.pdf':
+            return self._extract_from_pdf(file_path)
+        elif file_extension in ['.docx', '.doc']:
+            return self._extract_from_docx(file_path)
+        else:
+            raise ValueError(f"Unsupported file format: {file_extension}")
+    
+    def _extract_from_pdf(self, file_path: str) -> str:
+        """Extract text from PDF file."""
+        text = ""
+        with open(file_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            for page_num in range(len(pdf_reader.pages)):
+                page = pdf_reader.pages[page_num]
+                text += page.extract_text() + "\n"
+        return text
+    
+    def _extract_from_docx(self, file_path: str) -> str:
+        """Extract text from DOCX file."""
+        doc = docx.Document(file_path)
+        full_text = []
+        for para in doc.paragraphs:
+            full_text.append(para.text)
+        return '\n'.join(full_text)
+    
+    def extract_questions(self, document_text: str) -> List[Dict[str, Any]]:
+        """Extract all questions from the document text using OpenAI."""
+        # Prompt engineering for question extraction
+        prompt = f"""
+        Extract ALL questions from this form document. 
+        
+        Include:
+        1. The exact question text
+        2. The question type (text, multiple choice, yes/no, date, etc.)
+        3. Any options for multiple choice questions
+        4. Any validation rules or requirements
+        
+        Format the output as a JSON array of questions.
+        DO NOT miss any questions, even if they seem minor.
+        If there are sub-questions, include them as separate entries.
+        
+        Document text:
+        {document_text}
+        """
+        
+        response = self.client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a form processing system. Your task is to extract ALL questions from forms with 100% accuracy. Do not miss any questions."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+        
+        try:
+            questions = json.loads(response.choices[0].message.content)
+            return questions.get("questions", [])
+        except json.JSONDecodeError:
+            # Fallback if JSON parsing fails
+            return []
+    
+    def validate_questions(self, questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Validate the extracted questions for completeness and consistency."""
+        # Use OpenAI to check if questions appear complete and consistent
+        question_texts = "\n".join([f"{i+1}. {q['question']}" for i, q in enumerate(questions)])
+        
+        prompt = f"""
+        Review these questions extracted from a form and identify any issues:
+        
+        {question_texts}
+        
+        Issues to look for:
+        1. Missing questions (check for numerical sequences or lettered items)
+        2. Incomplete questions (missing parts or context)
+        3. Questions that should be split into multiple questions
+        
+        Format your response as a JSON object with:
+        - "complete": true/false (whether the extraction seems complete)
+        - "issues": array of issue descriptions
+        - "suggestions": array of suggestions for improvement
+        """
+        
+        response = self.client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a form validation system. Your task is to ensure that all questions from a form have been correctly extracted."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+        
+        validation_result = json.loads(response.choices[0].message.content)
+        
+        # If the extraction is incomplete, log the issues for admin review
+        if not validation_result.get("complete", True):
+            print("Warning: Question extraction may be incomplete.")
+            for issue in validation_result.get("issues", []):
+                print(f"- {issue}")
+                
+        return questions  # Return the original questions for now
+    
+    def process_form(self, file_path: str, form_name: str) -> Dict[str, Any]:
+        """Process a form file and return structured form data."""
+        document_text = self.extract_text_from_document(file_path)
+        questions = self.extract_questions(document_text)
+        validated_questions = self.validate_questions(questions)
+        
+        # Assign unique IDs to each question
+        for i, question in enumerate(validated_questions):
+            question['id'] = f"q_{i+1}"
+        
+        form_data = {
+            "form_id": str(uuid.uuid4()),
+            "form_name": form_name,
+            "questions": validated_questions,
+            "created_at": datetime.now().isoformat(),
+            "version": "1.0"
+        }
+        
+        return form_data
