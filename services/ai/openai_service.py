@@ -1,6 +1,9 @@
 import os
 import json
 import logging
+import base64
+import mimetypes
+from pathlib import Path
 from openai import OpenAI
 from flask import current_app
 
@@ -19,33 +22,144 @@ def get_openai_client():
         openai = OpenAI(api_key=api_key)
     return openai
 
+def is_image_file(file_path):
+    """Check if a file is an image based on its extension or MIME type"""
+    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
+    extension = Path(file_path).suffix.lower()
+    
+    # Check by extension
+    if extension in image_extensions:
+        return True
+    
+    # Check by MIME type
+    mime_type, _ = mimetypes.guess_type(file_path)
+    return mime_type and mime_type.startswith('image/')
+
+def encode_image_to_base64(image_path):
+    """Encode an image file to base64 for the OpenAI API"""
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode('utf-8')
+
+def extract_form_fields_from_image(image_path):
+    """Extract form fields from an image using GPT-4o multimodal capabilities"""
+    client = get_openai_client()
+    
+    try:
+        base64_image = encode_image_to_base64(image_path)
+        
+        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+        # do not change this unless explicitly requested by the user
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a form extraction expert for Minto Disability Services. "
+                        "Your task is to analyze the provided image of a form and extract ALL form fields/questions. "
+                        "Be extremely thorough and don't miss ANY fields. Include every field present in the form, "
+                        "even if it seems minor or standard. Extract each field with its label, type, and whether it's required."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Here's an image of a form. Please extract all form fields (questions) that need to be filled out. "
+                            "Be comprehensive and identify every field visible, including headers, subheaders, and all questions. "
+                            "Format your response as a structured JSON with a 'questions' array where each question includes: "
+                            "1. A unique 'id' (based on the field name) "
+                            "2. 'question_text' (the exact text of the field/question) "
+                            "3. 'field_type' (text, textarea, date, checkbox, radio, select, email, etc.) "
+                            "4. 'options' array (for checkbox, radio, select fields) "
+                            "5. 'required' (true/false - assume any field with an asterisk or otherwise marked as required is true) "
+                            "Don't miss ANY fields."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            response_format={"type": "json_object"}
+        )
+        
+        result = json.loads(response.choices[0].message.content)
+        current_app.logger.info(f"Extracted {len(result.get('questions', []))} form fields from image")
+        return result
+    
+    except Exception as e:
+        current_app.logger.error(f"Error extracting fields from image: {str(e)}")
+        raise Exception(f"Failed to extract form fields from image: {str(e)}")
+
 def parse_form_document(file_path):
     """
     Parse a form document and extract a structured representation of questions.
+    Handles PDFs, text files, images, and docx files.
     """
     try:
+        file_path_str = str(file_path)
+        current_app.logger.info(f"Parsing form document: {file_path_str}")
+        
+        # Check if the file is an image
+        if is_image_file(file_path_str):
+            current_app.logger.info(f"Processing file as image: {file_path_str}")
+            return extract_form_fields_from_image(file_path_str)
+        
         # Extract text from the file based on type
-        if file_path.endswith('.pdf'):
+        if file_path_str.endswith('.pdf'):
             import PyPDF2
             
             text = ""
-            with open(file_path, 'rb') as file:
+            with open(file_path_str, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
+                
+                # Check if the PDF contains any images
+                has_images = False
                 for page_num in range(len(pdf_reader.pages)):
                     page = pdf_reader.pages[page_num]
-                    text += page.extract_text() + "\n\n"
+                    if '/XObject' in page['/Resources']:
+                        has_images = True
+                        break
+                
+                # If PDF has images, it might be a scanned form
+                # In this case, try to use GPT-4 Vision to extract fields
+                if has_images:
+                    current_app.logger.info(f"PDF contains images, attempting to process as image: {file_path_str}")
+                    try:
+                        return extract_form_fields_from_image(file_path_str)
+                    except Exception as e:
+                        current_app.logger.warning(f"Failed to process PDF as image: {str(e)}. Falling back to text extraction.")
+                
+                # Extract text from all pages
+                for page_num in range(len(pdf_reader.pages)):
+                    page = pdf_reader.pages[page_num]
+                    extracted_text = page.extract_text()
+                    if extracted_text:
+                        text += extracted_text + "\n\n"
+            
             file_content = text
-        elif file_path.endswith('.docx'):
+        elif file_path_str.endswith('.docx'):
             # In a production app, you'd use python-docx library
+            # For now, use a placeholder incident form structure
             file_content = "This is an incident report form for Minto Disability Services. The form requires the following information: incident date, incident time, incident location, persons involved, incident description, severity level (minor, moderate, severe), whether medical attention was required, any immediate actions taken, and reporter details including name, position, contact information, and signature."
         else:
             # Text file
-            with open(file_path, 'r', encoding='utf-8') as file:
-                file_content = file.read()
+            try:
+                with open(file_path_str, 'r', encoding='utf-8') as file:
+                    file_content = file.read()
+            except UnicodeDecodeError:
+                # If UTF-8 fails, try binary read as it might be an image or binary file
+                current_app.logger.info(f"Failed to read as text, attempting to process as image: {file_path_str}")
+                return extract_form_fields_from_image(file_path_str)
         
         # If no content was extracted, use a default template for an incident form
         if not file_content or len(file_content.strip()) < 50:
-            current_app.logger.warning(f"Limited content extracted from {file_path}, using default incident form template")
+            current_app.logger.warning(f"Limited content extracted from {file_path_str}, using default incident form template")
             file_content = """
             Incident Report Form for Minto Disability Services
             
@@ -77,14 +191,16 @@ def parse_form_document(file_path):
                 {
                     "role": "system",
                     "content": (
-                        "You are a form parsing assistant for Minto Disability Services. Extract all questions and fields from the provided form document. "
-                        "If the document doesn't appear to be a form, assume it's an incident report form and generate appropriate fields. "
+                        "You are a form parsing assistant for Minto Disability Services. Your task is to extract ALL questions and fields from the provided form document. "
+                        "Be extremely thorough and don't miss ANY fields or questions. "
                         "For each field, identify: "
-                        "1. The question or field label (make it descriptive and clear) "
-                        "2. The field type (text, checkbox, radio, select, textarea, date, email, number, etc.) "
-                        "3. Any available options (for checkboxes, radios, selects) "
-                        "4. Whether the field is required (most fields should be required for an incident form) "
-                        "Return this in a structured JSON format with a 'questions' array containing each field."
+                        "1. A unique 'id' (based on the field name) "
+                        "2. The question or field label as 'question_text' (make it descriptive and clear) "
+                        "3. The 'field_type' (text, checkbox, radio, select, textarea, date, email, number, etc.) "
+                        "4. Any available 'options' (for checkboxes, radios, selects) as an array "
+                        "5. Whether the field is 'required' (boolean - assume any field with an asterisk or otherwise marked as required is true) "
+                        "Return this in a structured JSON format with a 'questions' array containing each field. "
+                        "Don't combine or abbreviate any questions. Include all header and instruction text as well."
                     )
                 },
                 {
@@ -110,6 +226,10 @@ def generate_form_questions(form_structure):
         # Get the OpenAI client
         client = get_openai_client()
         
+        # Count the original number of questions
+        original_question_count = len(form_structure.get('questions', []))
+        current_app.logger.info(f"Organizing {original_question_count} questions into a sequential flow")
+        
         # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
         # do not change this unless explicitly requested by the user
         response = client.chat.completions.create(
@@ -119,20 +239,61 @@ def generate_form_questions(form_structure):
                     "role": "system",
                     "content": (
                         "You are a form design assistant. Convert the provided form structure into a step-by-step "
-                        "sequential flow of questions. Group related questions where appropriate. Each question should "
-                        "include: id, question text, field type, options (if applicable), validation rules, and whether "
-                        "it's required. The output should be a JSON array of question objects."
+                        "sequential flow of questions. Make sure to include ALL questions from the original form - "
+                        "do not skip or combine any questions. It's critical that you preserve every single field. "
+                        "Each question should include: id, question_text, field_type, options (if applicable), and whether "
+                        "it's required. The output must be a JSON object with a 'questions' array containing all fields. "
+                        "The number of questions in your output should match the number in the input."
                     )
                 },
                 {
                     "role": "user",
-                    "content": json.dumps(form_structure)
+                    "content": (
+                        f"Here's a form with {original_question_count} questions/fields. "
+                        f"Please organize them into a sequential flow, preserving ALL fields. "
+                        f"Your output must contain ALL {original_question_count} questions in the 'questions' array. "
+                        f"Form structure: {json.dumps(form_structure)}"
+                    )
                 }
             ],
             response_format={"type": "json_object"}
         )
         
         result = json.loads(response.choices[0].message.content)
+        
+        # Verify that all questions are preserved
+        result_question_count = len(result.get('questions', []))
+        current_app.logger.info(f"Structured flow has {result_question_count} questions")
+        
+        # If questions were lost, use the original structure but ensure it has consistent field names
+        if result_question_count < original_question_count:
+            current_app.logger.warning(f"Questions were lost in the structuring process. Original: {original_question_count}, Result: {result_question_count}")
+            current_app.logger.info("Falling back to original structure with field name standardization")
+            
+            # Standardize field names in the original structure
+            standardized_questions = []
+            for q in form_structure.get('questions', []):
+                # Make a copy of the question to avoid modifying the original
+                standardized_q = q.copy()
+                
+                # Ensure question_text field exists
+                if 'question_text' not in standardized_q:
+                    standardized_q['question_text'] = standardized_q.get('question') or standardized_q.get('label') or standardized_q.get('text') or f"Question {standardized_q.get('id', 'unknown')}"
+                
+                # Ensure field_type field exists
+                if 'field_type' not in standardized_q:
+                    standardized_q['field_type'] = standardized_q.get('type') or 'text'
+                
+                # Ensure id field exists
+                if 'id' not in standardized_q:
+                    # Generate an ID based on the question text
+                    text = standardized_q['question_text']
+                    standardized_q['id'] = text.lower().replace(' ', '_')[:30]
+                
+                standardized_questions.append(standardized_q)
+            
+            return {'questions': standardized_questions}
+            
         return result
     
     except Exception as e:

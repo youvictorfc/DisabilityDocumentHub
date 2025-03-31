@@ -1,5 +1,6 @@
 import json
 import logging
+from flask import current_app
 from services.ai.openai_service import parse_form_document, generate_form_questions
 
 def extract_form_structure(file_path):
@@ -10,11 +11,51 @@ def extract_form_structure(file_path):
     2. Structure the questions into a step-by-step flow
     """
     try:
+        # Log the start of form extraction
+        current_app.logger.info(f"Starting form extraction for file: {file_path}")
+        
         # Step 1: Parse the form document to identify fields
         parsed_form = parse_form_document(file_path)
         
+        # Log how many questions were found in the initial parsing
+        questions_count = len(parsed_form.get('questions', []))
+        current_app.logger.info(f"Initial parsing found {questions_count} questions/fields")
+        
+        if questions_count == 0:
+            current_app.logger.error("No questions were extracted from the form. Using a fallback form template.")
+            # Create a simple fallback form if no questions were found
+            parsed_form = {
+                "questions": [
+                    {
+                        "id": "form_name",
+                        "question_text": "Form Name",
+                        "field_type": "text",
+                        "required": True
+                    },
+                    {
+                        "id": "form_description",
+                        "question_text": "Form Description",
+                        "field_type": "textarea",
+                        "required": True
+                    }
+                ]
+            }
+        
         # Step 2: Generate a step-by-step flow of questions
+        current_app.logger.info("Generating sequential question flow...")
         structured_questions = generate_form_questions(parsed_form)
+        
+        # Validate the structured questions
+        final_questions_count = len(structured_questions.get('questions', []))
+        current_app.logger.info(f"Final structured form has {final_questions_count} questions")
+        
+        if final_questions_count < questions_count:
+            current_app.logger.warning(f"Some questions may have been lost in structuring. Initial: {questions_count}, Final: {final_questions_count}")
+            # If we lost questions in the process, use the original parsed form
+            # but ensure it has the proper structure for the frontend
+            if 'questions' in parsed_form and len(parsed_form['questions']) > final_questions_count:
+                current_app.logger.info("Using original parsed form to preserve all questions")
+                return parsed_form
         
         return structured_questions
     

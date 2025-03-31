@@ -17,4 +17,5 @@ dependencies = [
     "pypdf2>=3.0.1",
     "numpy>=2.2.4",
     "faiss-cpu>=1.10.0",
+    "pillow>=11.1.0",
 ]

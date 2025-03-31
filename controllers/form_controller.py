@@ -55,9 +55,10 @@ def upload_form():
             flash('No file selected', 'danger')
             return render_template('forms/form_upload.html')
         
-        allowed_extensions = {'pdf', 'doc', 'docx', 'txt'}
+        # Allow a wider range of file types, including images
+        allowed_extensions = {'pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff'}
         if not '.' in file.filename or file.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
-            flash('File type not allowed', 'danger')
+            flash('File type not allowed. Supported types: PDF, Office documents, text, and images (JPG, PNG, etc.)', 'danger')
             return render_template('forms/form_upload.html')
         
         # Save the file

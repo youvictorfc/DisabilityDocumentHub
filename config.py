@@ -12,7 +12,7 @@ class Config:
     # Upload settings
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB
-    ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
+    ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'webp'}
     
     # OpenAI
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')

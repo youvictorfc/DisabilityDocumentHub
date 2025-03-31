@@ -1,15 +1,83 @@
 import os
 import logging
+import mimetypes
+from pathlib import Path
 from flask import current_app
 from app import db
 from models import Document, DocumentChunk
 from services.document.vector_service import add_to_vector_db
+from services.ai.openai_service import get_openai_client, encode_image_to_base64
+
+def is_image_file(file_path):
+    """Check if a file is an image based on its extension or MIME type"""
+    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
+    extension = Path(file_path).suffix.lower()
+    
+    # Check by extension
+    if extension in image_extensions:
+        return True
+    
+    # Check by MIME type
+    mime_type, _ = mimetypes.guess_type(file_path)
+    return mime_type and mime_type.startswith('image/')
+
+def extract_text_from_image(image_path):
+    """
+    Extract text content from an image using OCR via OpenAI's multimodal capabilities.
+    """
+    try:
+        # Get the OpenAI client
+        client = get_openai_client()
+        
+        # Encode the image to base64
+        base64_image = encode_image_to_base64(image_path)
+        
+        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+        # do not change this unless explicitly requested by the user
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an OCR assistant. Extract all visible text from the provided image. Maintain the formatting as much as possible."
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Extract all text content from this image. Preserve paragraph structure and formatting as much as possible."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ]
+        )
+        
+        extracted_text = response.choices[0].message.content
+        current_app.logger.info(f"Extracted {len(extracted_text)} characters of text from image")
+        return extracted_text
+    
+    except Exception as e:
+        current_app.logger.error(f"Error extracting text from image: {str(e)}")
+        return f"Error extracting text from image: {str(e)}"
 
 def extract_text_from_file(file_path):
     """
     Extract text content from a document file based on its type.
+    Supports PDFs, text files, images, and docx files.
     """
     try:
+        # Check if it's an image file
+        if is_image_file(file_path):
+            current_app.logger.info(f"Processing file as image: {file_path}")
+            return extract_text_from_image(file_path)
+        
         # File type handling
         if file_path.endswith('.pdf'):
             import PyPDF2
@@ -17,9 +85,42 @@ def extract_text_from_file(file_path):
             text = ""
             with open(file_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
+                
+                # Check if the PDF contains images that might need OCR
+                has_images = False
                 for page_num in range(len(pdf_reader.pages)):
                     page = pdf_reader.pages[page_num]
-                    text += page.extract_text() + "\n\n"
+                    if '/XObject' in page['/Resources']:
+                        has_images = True
+                        break
+                
+                # If PDF has images and little text, it might be a scanned document
+                # Try to use OpenAI Vision
+                if has_images:
+                    try:
+                        # First try to extract text the normal way
+                        for page_num in range(len(pdf_reader.pages)):
+                            page = pdf_reader.pages[page_num]
+                            extracted = page.extract_text()
+                            if extracted:
+                                text += extracted + "\n\n"
+                        
+                        # If we got very little text but have images, try OCR
+                        if len(text.strip()) < 100 and has_images:
+                            current_app.logger.info(f"PDF may be scanned, attempting OCR: {file_path}")
+                            ocr_text = extract_text_from_image(file_path)
+                            if ocr_text and len(ocr_text) > len(text):
+                                return ocr_text
+                    except Exception as e:
+                        current_app.logger.warning(f"Error extracting text from PDF pages: {str(e)}")
+                else:
+                    # Regular PDF text extraction
+                    for page_num in range(len(pdf_reader.pages)):
+                        page = pdf_reader.pages[page_num]
+                        extracted_text = page.extract_text()
+                        if extracted_text:
+                            text += extracted_text + "\n\n"
+            
             return text
             
         elif file_path.endswith('.docx'):
@@ -27,9 +128,14 @@ def extract_text_from_file(file_path):
             return "This is sample content from a DOCX file for demonstration purposes."
             
         else:
-            # Assume it's a text file
-            with open(file_path, 'r', encoding='utf-8') as file:
-                return file.read()
+            # Try to read as a text file
+            try:
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    return file.read()
+            except UnicodeDecodeError:
+                # If it fails as text, try as binary/image
+                current_app.logger.info(f"File could not be read as text, attempting as image: {file_path}")
+                return extract_text_from_image(file_path)
     
     except Exception as e:
         logging.error(f"Error extracting text: {str(e)}")

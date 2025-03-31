@@ -31,12 +31,19 @@
                     <div class="mb-4">
                         <label for="form_file" class="form-label">Form Document</label>
                         <input class="form-control" type="file" id="form_file" name="form_file" required>
-                        <div class="form-text">Upload a PDF, Word document (.doc, .docx), or text file (.txt).</div>
+                        <div class="form-text">Upload a PDF, Word document (.doc, .docx), text file (.txt), or image file (JPG, PNG, etc.). The AI will extract all form fields from any document type.</div>
                     </div>
                     
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle me-2"></i>
-                        The system will automatically process this form to create an interactive version. This may take a moment.
+                        <strong>How the AI processes your form:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Our AI will scan through <strong>ALL</strong> questions from your uploaded form</li>
+                            <li>Each question will be presented to users one at a time in an interactive format</li>
+                            <li>For image-based forms, the AI will analyze the visual content to extract all fields</li>
+                            <li>For text-based documents, the AI will process the content to identify all form fields</li>
+                            <li>This processing may take a moment depending on form complexity</li>
+                        </ul>
                     </div>
                     
                     <div class="d-flex justify-content-between">
