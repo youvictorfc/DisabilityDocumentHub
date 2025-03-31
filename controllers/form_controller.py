@@ -107,10 +107,13 @@ def fill_form(form_id):
         is_complete=False
     ).first()
     
+    # Determine if we should use step-by-step view
+    view_mode = request.args.get('view', 'step')  # Default to step-by-step view
+    
     if existing_response:
-        response_id = existing_response.id
-        form_data = json.loads(form.structure)
-        answers = json.loads(existing_response.answers) if existing_response.answers else {}
+        response = existing_response
+        form_structure = json.loads(form.structure)
+        current_answers = json.loads(existing_response.answers) if existing_response.answers else {}
     else:
         # Create new form response
         new_response = FormResponse(
@@ -121,15 +124,28 @@ def fill_form(form_id):
         db.session.add(new_response)
         db.session.commit()
         
-        response_id = new_response.id
-        form_data = json.loads(form.structure)
-        answers = {}
+        response = new_response
+        form_structure = json.loads(form.structure)
+        current_answers = {}
     
-    return render_template('forms/form_fill.html', 
-                          form=form, 
-                          form_data=form_data, 
-                          answers=answers, 
-                          response_id=response_id)
+    # Get the questions from the form structure
+    questions = form_structure.get('questions', [])
+    
+    if view_mode == 'full':
+        # Show all questions at once
+        return render_template('forms/form_fill.html', 
+                              form=form, 
+                              form_data=form_structure, 
+                              answers=current_answers, 
+                              response_id=response.id)
+    else:
+        # Show questions one at a time
+        return render_template('forms/form_fill_step.html', 
+                              form=form, 
+                              form_structure=form_structure, 
+                              questions=questions,
+                              current_answers=current_answers, 
+                              response=response)
 
 @form_bp.route('/response/<int:response_id>/save', methods=['POST'])
 @login_required

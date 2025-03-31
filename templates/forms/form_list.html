@@ -46,9 +46,12 @@
                         Last updated: {{ form.updated_at.strftime('%Y-%m-%d %H:%M') }}
                     </p>
                 </div>
-                <div class="card-footer bg-transparent border-0">
-                    <a href="{{ url_for('form.fill_form', form_id=form.form_id) }}" class="btn btn-primary btn-sm">
-                        <i class="bi bi-pencil-square me-1"></i>Continue
+                <div class="card-footer bg-transparent border-0 d-flex">
+                    <a href="{{ url_for('form.fill_form', form_id=form.form_id, view='step') }}" class="btn btn-primary btn-sm me-2">
+                        <i class="bi bi-pencil-square me-1"></i>Continue (Step-by-Step)
+                    </a>
+                    <a href="{{ url_for('form.fill_form', form_id=form.form_id, view='full') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-list-ul me-1"></i>Full Form
                     </a>
                 </div>
             </div>
@@ -70,9 +73,12 @@
                     <h5 class="card-title">{{ form.title }}</h5>
                     <p class="card-text">{{ form.description }}</p>
                 </div>
-                <div class="card-footer bg-transparent border-0">
-                    <a href="{{ url_for('form.fill_form', form_id=form.id) }}" class="btn btn-primary btn-sm">
-                        <i class="bi bi-file-earmark-text me-1"></i>Fill Form
+                <div class="card-footer bg-transparent border-0 d-flex">
+                    <a href="{{ url_for('form.fill_form', form_id=form.id, view='step') }}" class="btn btn-primary btn-sm me-2">
+                        <i class="bi bi-pencil-square me-1"></i>Step-by-Step
+                    </a>
+                    <a href="{{ url_for('form.fill_form', form_id=form.id, view='full') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-list-ul me-1"></i>Full Form
                     </a>
                 </div>
             </div>
