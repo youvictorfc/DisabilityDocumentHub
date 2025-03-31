@@ -1,5 +1,56 @@
 /* Custom styles for Minto Disability Services Document Hub */
 
+/* Minto Disability Services Theme Colors */
+:root {
+    --minto-teal: #2EBFBF;
+    --minto-green: #A5D239;
+    --bs-primary: var(--minto-teal);
+    --bs-primary-rgb: 46, 191, 191;
+    --bs-secondary: var(--minto-green);
+    --bs-secondary-rgb: 165, 210, 57;
+}
+
+/* Theme overrides */
+.bg-primary {
+    background-color: var(--minto-teal) !important;
+}
+
+.bg-secondary {
+    background-color: var(--minto-green) !important;
+}
+
+.btn-primary {
+    background-color: var(--minto-teal);
+    border-color: var(--minto-teal);
+}
+
+.btn-primary:hover, .btn-primary:focus {
+    background-color: #28a8a8;
+    border-color: #28a8a8;
+}
+
+.btn-secondary {
+    background-color: var(--minto-green);
+    border-color: var(--minto-green);
+}
+
+.btn-secondary:hover, .btn-secondary:focus {
+    background-color: #8fb933;
+    border-color: #8fb933;
+}
+
+.text-primary {
+    color: var(--minto-teal) !important;
+}
+
+.text-secondary {
+    color: var(--minto-green) !important;
+}
+
+.navbar-dark.bg-dark {
+    background-color: var(--minto-teal) !important;
+}
+
 /* Custom spacing for main content */
 .main-content {
     padding: 2rem 0;
@@ -17,6 +68,14 @@
 .card:hover {
     transform: translateY(-3px);
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+.card .card-header.bg-primary {
+    background-color: var(--minto-teal) !important;
+}
+
+.card .card-header.bg-secondary {
+    background-color: var(--minto-green) !important;
 }
 
 /* Form styling */
