@@ -8,6 +8,9 @@ from datetime import datetime
 from flask import current_app
 from openai import OpenAI
 
+# Import our specialized template for incident forms
+from services.form.incident_form_template import get_incident_form_template, is_incident_form
+
 class FormProcessor:
     """Service for processing forms, extracting questions, and managing form structure."""
     
@@ -338,6 +341,11 @@ class FormProcessor:
         are often indicated by blank spaces or colons rather than question marks.
         """
         current_app.logger.info("Using specialized form field extraction for structured forms")
+        
+        # Special handling for incident forms
+        if is_incident_form(document_text):
+            current_app.logger.info("Detected an incident form! Using predefined template.")
+            return get_incident_form_template()
         
         # Special prompt engineering for structured forms
         prompt = f"""
