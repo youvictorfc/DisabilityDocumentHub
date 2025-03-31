@@ -141,7 +141,6 @@ def save_form_progress(response_id):
         return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
     data = request.json
-    current_question = data.get('currentQuestion')
     answers = data.get('answers', {})
     
     # Update response

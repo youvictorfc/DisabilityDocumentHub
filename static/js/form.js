@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const initialAnswers = JSON.parse(formContainer.dataset.answers || '{}');
     
     // Form state
-    let currentQuestionIndex = 0;
     let answers = {...initialAnswers};
     let questions = formData.questions || [];
     
@@ -30,161 +29,167 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Determine starting question
-        if (Object.keys(answers).length > 0) {
-            // If we have answers, try to find the last answered question
-            let lastAnsweredIndex = questions.findIndex(q => answers[q.id]);
-            if (lastAnsweredIndex !== -1) {
-                currentQuestionIndex = Math.min(lastAnsweredIndex + 1, questions.length - 1);
-            }
-        }
+        // Show all form questions at once
+        renderEntireForm();
         
-        renderQuestion();
-        updateNavigation();
+        // Hide navigation since all questions are shown at once
+        updateNavigationForFullForm();
     }
     
-    // Render the current question
-    function renderQuestion() {
-        if (currentQuestionIndex >= questions.length) {
-            showCompletionScreen();
-            return;
-        }
+    // Render the entire form at once
+    function renderEntireForm() {
+        // Create a form that displays all questions at once
+        let formHTML = '<div class="full-form">';
         
-        const question = questions[currentQuestionIndex];
-        const questionId = question.id;
-        // Handle variations in field names from different form structures
-        const questionText = question.question_text || question.question || question.label || "Question " + (currentQuestionIndex + 1);
-        const isRequired = question.required === true;
-        const fieldType = question.field_type || question.type || "text";
+        // Add each question
+        questions.forEach((question, index) => {
+            const questionId = question.id;
+            // Handle variations in field names from different form structures
+            const questionText = question.question_text || question.question || question.label || "Question " + (index + 1);
+            const isRequired = question.required === true;
+            const fieldType = question.field_type || question.type || "text";
+            
+            formHTML += `
+                <div class="form-group mb-4">
+                    <div class="question-title">
+                        ${questionText}
+                        ${isRequired ? '<span class="required-indicator text-danger">*</span>' : ''}
+                    </div>
+            `;
+            
+            // Add field based on type
+            switch (fieldType) {
+                case 'text':
+                    formHTML += `
+                        <input type="text" class="form-control mt-2" id="input-${questionId}" 
+                               data-question-id="${questionId}"
+                               value="${answers[questionId] || ''}" 
+                               ${isRequired ? 'required' : ''}>
+                    `;
+                    break;
+                    
+                case 'textarea':
+                    formHTML += `
+                        <textarea class="form-control mt-2" id="input-${questionId}" 
+                                  data-question-id="${questionId}"
+                                  rows="4" ${isRequired ? 'required' : ''}>${answers[questionId] || ''}</textarea>
+                    `;
+                    break;
+                    
+                case 'number':
+                    formHTML += `
+                        <input type="number" class="form-control mt-2" id="input-${questionId}" 
+                               data-question-id="${questionId}"
+                               value="${answers[questionId] || ''}" 
+                               ${isRequired ? 'required' : ''}>
+                    `;
+                    break;
+                    
+                case 'date':
+                    formHTML += `
+                        <input type="date" class="form-control mt-2" id="input-${questionId}" 
+                               data-question-id="${questionId}"
+                               value="${answers[questionId] || ''}" 
+                               ${isRequired ? 'required' : ''}>
+                    `;
+                    break;
+                    
+                case 'email':
+                    formHTML += `
+                        <input type="email" class="form-control mt-2" id="input-${questionId}" 
+                               data-question-id="${questionId}"
+                               value="${answers[questionId] || ''}" 
+                               ${isRequired ? 'required' : ''}>
+                    `;
+                    break;
+                    
+                case 'radio':
+                    formHTML += '<div class="mt-2">';
+                    if (question.options) {
+                        question.options.forEach((option, i) => {
+                            formHTML += `
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="input-${questionId}" 
+                                           data-question-id="${questionId}"
+                                           id="option-${questionId}-${i}" value="${option}" 
+                                           ${answers[questionId] === option ? 'checked' : ''}
+                                           ${isRequired ? 'required' : ''}>
+                                    <label class="form-check-label" for="option-${questionId}-${i}">
+                                        ${option}
+                                    </label>
+                                </div>
+                            `;
+                        });
+                    }
+                    formHTML += '</div>';
+                    break;
+                    
+                case 'checkbox':
+                    formHTML += '<div class="mt-2">';
+                    if (question.options) {
+                        question.options.forEach((option, i) => {
+                            const isChecked = Array.isArray(answers[questionId]) && answers[questionId].includes(option);
+                            formHTML += `
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="input-${questionId}" 
+                                           data-question-id="${questionId}"
+                                           id="option-${questionId}-${i}" value="${option}" 
+                                           ${isChecked ? 'checked' : ''}>
+                                    <label class="form-check-label" for="option-${questionId}-${i}">
+                                        ${option}
+                                    </label>
+                                </div>
+                            `;
+                        });
+                    }
+                    formHTML += '</div>';
+                    break;
+                    
+                case 'select':
+                    formHTML += `
+                        <select class="form-select mt-2" id="input-${questionId}" 
+                                data-question-id="${questionId}"
+                                ${isRequired ? 'required' : ''}>
+                            <option value="" ${!answers[questionId] ? 'selected' : ''}>Select an option</option>
+                    `;
+                    if (question.options) {
+                        question.options.forEach(option => {
+                            formHTML += `
+                                <option value="${option}" ${answers[questionId] === option ? 'selected' : ''}>
+                                    ${option}
+                                </option>
+                            `;
+                        });
+                    }
+                    formHTML += '</select>';
+                    break;
+                    
+                default:
+                    formHTML += `
+                        <input type="text" class="form-control mt-2" id="input-${questionId}" 
+                               data-question-id="${questionId}"
+                               value="${answers[questionId] || ''}" 
+                               ${isRequired ? 'required' : ''}>
+                    `;
+            }
+            
+            formHTML += `</div>`;
+        });
         
-        console.log("Current question:", question);
+        formHTML += '</div>';
+        
+        // Update the DOM
+        questionContainer.innerHTML = formHTML;
         
         // Update progress
-        const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
-        progressBar.style.width = `${progress}%`;
-        progressBar.setAttribute('aria-valuenow', progress);
+        progressBar.style.width = '100%';
+        progressBar.setAttribute('aria-valuenow', 100);
         
-        // Create question HTML
-        let questionHTML = `
-            <div class="question-title">
-                ${questionText}
-                ${isRequired ? '<span class="required-indicator">*</span>' : ''}
-            </div>
-        `;
-        
-        // Add field based on type (supporting both field_type and type properties)
-        switch (fieldType) {
-            case 'text':
-                questionHTML += `
-                    <input type="text" class="form-control" id="input-${questionId}" 
-                           value="${answers[questionId] || ''}" 
-                           ${isRequired ? 'required' : ''}>
-                `;
-                break;
-                
-            case 'textarea':
-                questionHTML += `
-                    <textarea class="form-control" id="input-${questionId}" rows="4"
-                              ${isRequired ? 'required' : ''}>${answers[questionId] || ''}</textarea>
-                `;
-                break;
-                
-            case 'number':
-                questionHTML += `
-                    <input type="number" class="form-control" id="input-${questionId}" 
-                           value="${answers[questionId] || ''}" 
-                           ${isRequired ? 'required' : ''}>
-                `;
-                break;
-                
-            case 'date':
-                questionHTML += `
-                    <input type="date" class="form-control" id="input-${questionId}" 
-                           value="${answers[questionId] || ''}" 
-                           ${isRequired ? 'required' : ''}>
-                `;
-                break;
-                
-            case 'email':
-                questionHTML += `
-                    <input type="email" class="form-control" id="input-${questionId}" 
-                           value="${answers[questionId] || ''}" 
-                           ${isRequired ? 'required' : ''}>
-                `;
-                break;
-                
-            case 'radio':
-                questionHTML += '<div class="mt-2">';
-                if (question.options) {
-                    question.options.forEach((option, i) => {
-                        questionHTML += `
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="input-${questionId}" 
-                                       id="option-${questionId}-${i}" value="${option}" 
-                                       ${answers[questionId] === option ? 'checked' : ''}
-                                       ${isRequired ? 'required' : ''}>
-                                <label class="form-check-label" for="option-${questionId}-${i}">
-                                    ${option}
-                                </label>
-                            </div>
-                        `;
-                    });
-                }
-                questionHTML += '</div>';
-                break;
-                
-            case 'checkbox':
-                questionHTML += '<div class="mt-2">';
-                if (question.options) {
-                    question.options.forEach((option, i) => {
-                        const isChecked = Array.isArray(answers[questionId]) && answers[questionId].includes(option);
-                        questionHTML += `
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="input-${questionId}" 
-                                       id="option-${questionId}-${i}" value="${option}" 
-                                       ${isChecked ? 'checked' : ''}>
-                                <label class="form-check-label" for="option-${questionId}-${i}">
-                                    ${option}
-                                </label>
-                            </div>
-                        `;
-                    });
-                }
-                questionHTML += '</div>';
-                break;
-                
-            case 'select':
-                questionHTML += `
-                    <select class="form-select" id="input-${questionId}" ${isRequired ? 'required' : ''}>
-                        <option value="" ${!answers[questionId] ? 'selected' : ''}>Select an option</option>
-                `;
-                if (question.options) {
-                    question.options.forEach(option => {
-                        questionHTML += `
-                            <option value="${option}" ${answers[questionId] === option ? 'selected' : ''}>
-                                ${option}
-                            </option>
-                        `;
-                    });
-                }
-                questionHTML += '</select>';
-                break;
-                
-            default:
-                questionHTML += `
-                    <input type="text" class="form-control" id="input-${questionId}" 
-                           value="${answers[questionId] || ''}" 
-                           ${isRequired ? 'required' : ''}>
-                `;
-        }
-        
-        questionContainer.innerHTML = questionHTML;
-        
-        // Add event listeners to inputs
-        setupInputListeners(question);
+        // Add event listeners to all inputs
+        setupAllInputListeners();
     }
     
-    // Set up input event listeners
+    // Set up input event listeners for a single question
     function setupInputListeners(question) {
         const questionId = question.id;
         const fieldType = question.field_type || question.type || "text";
@@ -223,7 +228,47 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Update navigation buttons
+    // Set up input event listeners for all questions
+    function setupAllInputListeners() {
+        // Set up listeners for all text, number, email, date, and textarea inputs
+        document.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input[type="date"], textarea, select').forEach(input => {
+            if (input.dataset.questionId) {
+                input.addEventListener('input', function() {
+                    const questionId = this.dataset.questionId;
+                    answers[questionId] = this.value;
+                });
+            }
+        });
+        
+        // Set up listeners for all radio inputs
+        questions.forEach(question => {
+            const questionId = question.id;
+            const fieldType = question.field_type || question.type || "text";
+            
+            if (fieldType === 'radio') {
+                const radioInputs = document.querySelectorAll(`input[name="input-${questionId}"]`);
+                radioInputs.forEach(input => {
+                    input.addEventListener('change', function() {
+                        answers[questionId] = this.value;
+                    });
+                });
+            } else if (fieldType === 'checkbox') {
+                const checkboxInputs = document.querySelectorAll(`input[name="input-${questionId}"]`);
+                checkboxInputs.forEach(input => {
+                    input.addEventListener('change', function() {
+                        // Get all checked values
+                        const checkedValues = Array.from(checkboxInputs)
+                            .filter(cb => cb.checked)
+                            .map(cb => cb.value);
+                        
+                        answers[questionId] = checkedValues;
+                    });
+                });
+            }
+        });
+    }
+    
+    // Update navigation buttons (for step-by-step navigation)
     function updateNavigation() {
         // Disable/enable previous button
         prevButton.disabled = currentQuestionIndex === 0;
@@ -236,6 +281,16 @@ document.addEventListener('DOMContentLoaded', function() {
             nextButton.style.display = 'block';
             submitButton.style.display = 'none';
         }
+    }
+    
+    // Update navigation for full form display
+    function updateNavigationForFullForm() {
+        // Hide previous and next buttons since all questions are displayed at once
+        prevButton.style.display = 'none';
+        nextButton.style.display = 'none';
+        
+        // Show the submit button
+        submitButton.style.display = 'block';
     }
     
     // Show the completion screen
@@ -315,7 +370,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Add continue editing button listener
         document.getElementById('continue-editing-button').addEventListener('click', function() {
-            renderQuestion();
+            renderEntireForm();
         });
     }
     
@@ -330,7 +385,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                currentQuestion: questions[currentQuestionIndex]?.id,
                 answers: answers
             }),
         })
