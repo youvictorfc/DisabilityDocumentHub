@@ -157,7 +157,11 @@
             
             // Get the form action URL
             const url = this.getAttribute('action');
-            const docId = url.split('/')[2]; // Get document ID from URL
+            // Extract ID reliably from URL
+            const urlParts = url.split('/');
+            const docId = urlParts[urlParts.length - 2]; // The ID is the second-to-last part in /policies/ID/delete
+            
+            console.log('Deleting policy with ID:', docId, 'URL:', url);
             
             // Send a POST request
             fetch(url, {
@@ -167,16 +171,24 @@
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.statusText);
+                }
+                return response.json();
+            })
             .then(data => {
                 // Hide the modal
                 deleteModal.hide();
                 
                 if (data.success) {
+                    console.log('Policy deleted successfully');
                     // Find and remove the card
                     const cardElement = document.querySelector(`.card[data-doc-id="${docId}"]`);
                     if (cardElement) {
                         cardElement.closest('.col').remove();
+                    } else {
+                        console.warn('Could not find card element to remove');
                     }
                 } else {
                     console.error('Failed to delete document:', data.message);
@@ -186,7 +198,7 @@
             .catch(error => {
                 console.error('Error:', error);
                 deleteModal.hide();
-                alert('An error occurred while trying to delete the document.');
+                alert('An error occurred while trying to delete the document: ' + error.message);
             });
         });
     });

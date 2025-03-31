@@ -196,7 +196,11 @@
             
             // Get the form action URL
             const url = this.getAttribute('action');
-            const formId = url.split('/').pop().replace('/delete', '');
+            // Extract ID from URL properly - get the last segment which is numeric
+            const urlParts = url.split('/');
+            const formId = urlParts[urlParts.length - 2]; // The ID is the second-to-last part in /forms/ID/delete
+            
+            console.log('Deleting form with ID:', formId, 'URL:', url);
             
             // Send a POST request
             fetch(url, {
@@ -206,12 +210,18 @@
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.statusText);
+                }
+                return response.json();
+            })
             .then(data => {
                 // Hide the modal
                 deleteModal.hide();
                 
                 if (data.success) {
+                    console.log('Form deleted successfully');
                     // Find and remove the card, first check regular forms
                     let cardElement = document.querySelector(`.card[data-form-id="${formId}"]`);
                     if (cardElement) {
@@ -232,7 +242,7 @@
             .catch(error => {
                 console.error('Error:', error);
                 deleteModal.hide();
-                alert('An error occurred while trying to delete the form.');
+                alert('An error occurred while trying to delete the form: ' + error.message);
             });
         });
     });
