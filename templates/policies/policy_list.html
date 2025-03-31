@@ -56,7 +56,7 @@
                         <i class="bi bi-question-circle me-1"></i>Ask About
                     </button>
                     {% if current_user.is_admin %}
-                    <button type="button" class="btn btn-danger btn-sm" 
+                    <button type="button" class="btn btn-danger btn-sm delete-button" 
                             data-bs-toggle="modal" 
                             data-bs-target="#deletePolicyModal{{ document.id }}">
                         <i class="bi bi-trash me-1"></i>Delete
@@ -105,6 +105,7 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Search functionality
         const searchInput = document.getElementById('policy-search');
         const policyCards = document.querySelectorAll('.policy-card');
         
@@ -120,6 +121,23 @@
                 } else {
                     card.style.display = 'none';
                 }
+            });
+        });
+        
+        // Fix delete button flickering
+        const deleteButtons = document.querySelectorAll('.delete-button');
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                // Prevent default action and event propagation
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Get the target modal ID from the button's data attribute
+                const modalId = this.getAttribute('data-bs-target');
+                
+                // Show the modal using Bootstrap's Modal API
+                const modal = new bootstrap.Modal(document.querySelector(modalId));
+                modal.show();
             });
         });
     });
