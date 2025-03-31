@@ -1,0 +1,189 @@
+/* Minto Disability Services Theme Colors */
+:root {
+    --minto-teal: #40BFC1;    /* Main turquoise color - primary */
+    --minto-green: #A6CE39;   /* Light green color - secondary */
+    --minto-dark: #212529;    /* Dark color for text */
+    --minto-light: #F8F9FA;   /* Light color for backgrounds */
+    --minto-white: #FFFFFF;   /* White */
+}
+
+/* Override Bootstrap theme colors */
+[data-bs-theme=dark] {
+    --bs-primary: var(--minto-teal);
+    --bs-primary-rgb: 64, 191, 193;
+    
+    --bs-secondary: var(--minto-green);
+    --bs-secondary-rgb: 166, 206, 57;
+    
+    /* Override success, info, warning colors to match the theme */
+    --bs-success: var(--minto-green);
+    --bs-success-rgb: 166, 206, 57;
+    
+    --bs-info: var(--minto-teal);
+    --bs-info-rgb: 64, 191, 193;
+    
+    /* Background colors */
+    --bs-body-bg: var(--minto-dark);
+    --bs-body-color: var(--minto-light);
+}
+
+/* Navbar styling */
+.navbar-brand {
+    display: flex;
+    align-items: center;
+}
+
+.navbar-brand img {
+    height: 40px;
+    margin-right: 10px;
+}
+
+.navbar {
+    background-color: var(--minto-white) !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.navbar-dark .navbar-nav .nav-link {
+    color: var(--minto-dark);
+}
+
+.navbar-dark .navbar-nav .nav-link:hover {
+    color: var(--minto-teal);
+}
+
+.navbar-dark .navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%2833, 37, 41, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+.navbar-dark .navbar-toggler {
+    border-color: var(--minto-dark);
+}
+
+/* Green top banner */
+.top-banner {
+    background-color: var(--minto-green);
+    color: var(--minto-white);
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+}
+
+.top-banner a {
+    color: var(--minto-white);
+    text-decoration: none;
+}
+
+.top-banner a:hover {
+    text-decoration: underline;
+}
+
+/* Main content section */
+.main-content {
+    background-color: var(--minto-white);
+    color: var(--minto-dark);
+    padding: 2rem 0;
+    min-height: calc(100vh - 250px);
+    border-radius: 0 0 1rem 1rem;
+}
+
+/* Section headers */
+.section-header {
+    position: relative;
+    padding: 2rem;
+    background-color: var(--minto-teal);
+    color: var(--minto-white);
+    margin-bottom: 2rem;
+    border-radius: 0.5rem;
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: transform 0.3s, box-shadow 0.3s;
+    background-color: var(--minto-white);
+    color: var(--minto-dark);
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background-color: var(--minto-teal);
+    color: var(--minto-white);
+    border-bottom: none;
+}
+
+.card-header.bg-secondary {
+    background-color: var(--minto-green) !important;
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: var(--minto-teal);
+    border-color: var(--minto-teal);
+}
+
+.btn-primary:hover, .btn-primary:focus {
+    background-color: #37a9ab;
+    border-color: #37a9ab;
+}
+
+.btn-secondary {
+    background-color: var(--minto-green);
+    border-color: var(--minto-green);
+}
+
+.btn-secondary:hover, .btn-secondary:focus {
+    background-color: #95b833;
+    border-color: #95b833;
+}
+
+/* Footer */
+.footer {
+    background-color: var(--minto-dark) !important;
+    color: var(--minto-light);
+    padding: 1.5rem 0;
+}
+
+/* Chat messages */
+.message-user {
+    background-color: var(--minto-teal);
+    color: var(--minto-white);
+}
+
+.message-assistant {
+    background-color: var(--minto-green);
+    color: var(--minto-dark);
+}
+
+/* Override for dark theme to make text more readable */
+.text-muted {
+    color: #B0B0B0 !important;
+}
+
+/* Table styling */
+.table {
+    background-color: var(--minto-white);
+    color: var(--minto-dark);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.table thead th {
+    background-color: var(--minto-teal);
+    color: var(--minto-white);
+    border-color: var(--minto-teal);
+}
+
+/* Badge colors */
+.badge.bg-primary {
+    background-color: var(--minto-teal) !important;
+}
+
+.badge.bg-secondary {
+    background-color: var(--minto-green) !important;
+    color: var(--minto-dark);
+}
