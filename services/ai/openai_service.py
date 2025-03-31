@@ -58,7 +58,8 @@ def extract_form_fields_from_image(image_path):
                         "You are a form extraction expert for Minto Disability Services with special focus on EXACT field extraction. "
                         "Your task is to analyze the provided image of a form and extract ALL form fields/questions EXACTLY as they appear in the original. "
                         "IMPORTANT: Do NOT rephrase, modify, combine, or add any questions. Preserve the original text, formatting, and order exactly. "
-                        "Extract the precise label text for every field. Do not summarize or generalize fields. Be extremely literal in your extraction."
+                        "Extract the precise label text for every field. Do not summarize or generalize fields. Be extremely literal in your extraction. "
+                        "You must return your output as structured JSON."
                     )
                 },
                 {
@@ -74,7 +75,7 @@ def extract_form_fields_from_image(image_path):
                             "3. 'field_type' (text, textarea, date, checkbox, radio, select, email, etc.) "
                             "4. 'options' array (EXACT options text for checkbox, radio, select fields) "
                             "5. 'required' (true/false - based on asterisks or 'required' markers) "
-                            "Do not skip ANY fields. Do not merge fields. Do not improve or reword the questions."
+                            "Return this as JSON. Do not skip ANY fields. Do not merge fields. Do not improve or reword the questions."
                         },
                         {
                             "type": "image_url",
@@ -202,12 +203,13 @@ def parse_form_document(file_path):
                         "4. 'options' array (EXACT options text for checkbox, radio, select fields) "
                         "5. Whether the field is 'required' (boolean - assume any field with an asterisk or otherwise marked as required is true) "
                         "Return this in a structured JSON format with a 'questions' array in the SAME ORDER as they appear on the form. "
-                        "Do not skip ANY fields. Do not merge fields. Do not improve or reword the questions."
+                        "Do not skip ANY fields. Do not merge fields. Do not improve or reword the questions. "
+                        "Output must be formatted as JSON."
                     )
                 },
                 {
                     "role": "user",
-                    "content": file_content
+                    "content": f"Parse the following form content and return all the form fields in JSON format. Extract every field EXACTLY as written: \n\n{file_content}"
                 }
             ],
             response_format={"type": "json_object"}
@@ -247,7 +249,8 @@ def generate_form_questions(form_structure):
                         "Do NOT change the order of questions from the original form. "
                         "Each question must keep its exact text with the same capitalization, punctuation, and formatting. "
                         "The output must match the input exactly in both question text and order. "
-                        "This is critical for compliance and legal purposes."
+                        "This is critical for compliance and legal purposes. "
+                        "Output must be formatted as JSON."
                     )
                 },
                 {
@@ -256,7 +259,7 @@ def generate_form_questions(form_structure):
                         f"This form has {original_question_count} questions that must be preserved EXACTLY as they are. "
                         f"Do not rewrite, improve, or modify the questions in any way. Do not change their order. "
                         f"The form structure and questions must be kept with 100% fidelity to the original. "
-                        f"Simply convert the input to proper format with 'questions' array containing ALL {original_question_count} questions with their exact wording. "
+                        f"Return your output as JSON with a 'questions' array containing ALL {original_question_count} questions with their exact wording. "
                         f"Form structure: {json.dumps(form_structure)}"
                     )
                 }
