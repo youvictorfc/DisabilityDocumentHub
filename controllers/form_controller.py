@@ -337,10 +337,23 @@ def submit_form(response_id):
             current_app.logger.warning(f"Form '{form.title}' submitted but email could not be sent: {email_result.get('message')}")
             email_sent = False
         
-        # Return success response
+        # Prepare the success message with appropriate context
+        success_message = 'Form submitted successfully'
+        
+        if email_sent:
+            success_message += ' and sent via email to Minto Disability Services'
+        else:
+            # Handle Gmail app-specific password requirement
+            if "Gmail requires an App-specific password" in email_result.get('message', ''):
+                success_message += ('. Email delivery is temporarily disabled until the Gmail configuration '
+                                  'is updated. Your form has been saved securely and can be accessed by administrators.')
+            else:
+                success_message += '. A local copy has been saved and will be processed by administrators'
+        
+        # Return detailed response
         return jsonify({
             'success': True,
-            'message': 'Form submitted successfully and sent to Minto Disability Services',
+            'message': success_message,
             'email_sent': email_sent,
             'email_details': email_result
         })

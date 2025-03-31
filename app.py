@@ -55,6 +55,14 @@ with app.app_context():
     
     # Create all tables
     db.create_all()
+    
+    # Create necessary upload directories
+    os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
+    os.makedirs(Config.FORM_UPLOAD_FOLDER, exist_ok=True)
+    os.makedirs(Config.DOCUMENT_UPLOAD_FOLDER, exist_ok=True)
+    os.makedirs(Config.PDF_OUTPUT_FOLDER, exist_ok=True)
+    os.makedirs(Config.VECTOR_DB_PATH, exist_ok=True)
+    os.makedirs(os.path.join(Config.UPLOAD_FOLDER, 'unsent_emails'), exist_ok=True)
 
 # Set up login manager loader
 from models import User

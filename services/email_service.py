@@ -1,4 +1,5 @@
 import os
+import sys
 import smtplib
 import logging
 import shutil
@@ -9,6 +10,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from flask import current_app
+
+# Import SendGrid if available
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail, Email, To, Content, Attachment, FileContent, FileName, FileType, Disposition
+    import base64
+    SENDGRID_AVAILABLE = True
+except ImportError:
+    SENDGRID_AVAILABLE = False
 
 # Default Minto email address - used as the primary recipient for all form submissions
 MINTO_DEFAULT_EMAIL = "hello@mintodisabilityservices.com.au"
@@ -143,6 +153,132 @@ class EmailManager:
             current_app.logger.error(f"Error saving local copy: {str(e)}")
             return False
 
+def send_with_sendgrid(recipient_email, form_title, pdf_path, form_data=None):
+    """
+    Send an email with a completed form PDF as an attachment using SendGrid.
+    
+    Args:
+        recipient_email (str): The email address of the recipient
+        form_title (str): The title of the form
+        pdf_path (str): The path to the PDF file to attach
+        form_data (dict, optional): Additional form data for context
+        
+    Returns:
+        dict: Result information including success status and message
+    """
+    if not SENDGRID_AVAILABLE:
+        current_app.logger.warning("SendGrid not available. Install with 'pip install sendgrid'")
+        return {
+            'success': False,
+            'method': 'error',
+            'message': "SendGrid module not available."
+        }
+    
+    # Check for SendGrid API key
+    sendgrid_key = current_app.config.get('SENDGRID_API_KEY', os.environ.get('SENDGRID_API_KEY'))
+    if not sendgrid_key:
+        current_app.logger.warning("SendGrid API key not configured")
+        return {
+            'success': False,
+            'method': 'error',
+            'message': "SendGrid API key not configured."
+        }
+    
+    current_app.logger.info(f"Sending form email with SendGrid for '{form_title}' to {recipient_email}")
+    
+    try:
+        # Add the Minto email as a recipient
+        recipients = [recipient_email]
+        if MINTO_DEFAULT_EMAIL.lower() != recipient_email.lower():
+            recipients.append(MINTO_DEFAULT_EMAIL)
+        
+        # Create mail message
+        html_content = f"""
+        <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    h2 {{ color: #2a5885; border-bottom: 1px solid #eee; padding-bottom: 10px; }}
+                    .footer {{ margin-top: 30px; padding-top: 10px; border-top: 1px solid #eee; font-size: 12px; color: #777; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h2>Form Submission Confirmation</h2>
+                    <p>Thank you for completing the <strong>{form_title}</strong> form.</p>
+                    <p>Your submission has been received by Minto Disability Services and is being processed.</p>
+                    <p>A PDF copy of your completed form is attached to this email for your records.</p>
+                    
+                    <div class="footer">
+                        <p>If you have any questions, please contact the Minto Disability Services team.</p>
+                        <p>This is an automated message from the Minto Disability Services Document Hub.</p>
+                    </div>
+                </div>
+            </body>
+        </html>
+        """
+        
+        # Create the message
+        message = Mail(
+            from_email=Email('noreply@mintodisabilityservices.com.au'),
+            to_emails=[To(r) for r in recipients],
+            subject=f"Completed Form: {form_title}",
+            html_content=Content("text/html", html_content)
+        )
+        
+        # Attach the PDF
+        try:
+            with open(pdf_path, 'rb') as f:
+                pdf_data = f.read()
+                
+            encoded_pdf = base64.b64encode(pdf_data).decode()
+            pdf_filename = os.path.basename(pdf_path)
+            
+            attachment = Attachment()
+            attachment.file_content = FileContent(encoded_pdf)
+            attachment.file_name = FileName(pdf_filename)
+            attachment.file_type = FileType('application/pdf')
+            attachment.disposition = Disposition('attachment')
+            message.attachment = attachment
+            
+        except Exception as e:
+            current_app.logger.error(f"Error attaching PDF with SendGrid: {str(e)}")
+            # Continue without attachment
+        
+        # Send the email
+        sg = SendGridAPIClient(sendgrid_key)
+        response = sg.send(message)
+        
+        # Log the response
+        current_app.logger.info(f"SendGrid response status code: {response.status_code}")
+        
+        if response.status_code >= 200 and response.status_code < 300:
+            current_app.logger.info(f"Email sent successfully with SendGrid to {', '.join(recipients)}")
+            return {
+                'success': True,
+                'method': 'sendgrid',
+                'recipients': recipients,
+                'message': "Email sent successfully with SendGrid"
+            }
+        else:
+            current_app.logger.error(f"SendGrid error: Status code {response.status_code}")
+            return {
+                'success': False,
+                'method': 'sendgrid_error',
+                'error': f"SendGrid error: Status code {response.status_code}",
+                'message': "Email sending failed with SendGrid. Form was saved locally."
+            }
+            
+    except Exception as e:
+        current_app.logger.error(f"SendGrid error: {str(e)}")
+        return {
+            'success': False,
+            'method': 'sendgrid_error',
+            'error': str(e),
+            'message': "Error sending email with SendGrid. Form was saved locally."
+        }
+
 def send_form_email(recipient_email, form_title, pdf_path, form_data=None):
     """
     Send an email with a completed form PDF as an attachment.
@@ -164,6 +300,16 @@ def send_form_email(recipient_email, form_title, pdf_path, form_data=None):
     
     # First, always save a local copy as backup
     email_manager.save_local_copy(recipient_email, form_title, pdf_path, form_data)
+    
+    # Try SendGrid first if available
+    sendgrid_key = current_app.config.get('SENDGRID_API_KEY', os.environ.get('SENDGRID_API_KEY'))
+    if SENDGRID_AVAILABLE and sendgrid_key:
+        current_app.logger.info("Attempting to send email with SendGrid")
+        result = send_with_sendgrid(recipient_email, form_title, pdf_path, form_data)
+        if result['success']:
+            return result
+        else:
+            current_app.logger.warning("SendGrid failed, falling back to SMTP")
     
     try:
         # Create the email message
@@ -192,18 +338,53 @@ def send_form_email(recipient_email, form_title, pdf_path, form_data=None):
                     server.starttls()
             
             # Login and send
-            server.login(config['mail_username'], config['mail_password'])
-            server.send_message(msg)
-            server.quit()
+            # More detailed logging for debugging
+            current_app.logger.info(f"Attempting to login with username: {config['mail_username']}")
+            current_app.logger.info(f"Mail server: {config['mail_server']}, port: {config['mail_port']}, TLS: {config['mail_use_tls']}")
             
-            current_app.logger.info(f"Email sent successfully to {', '.join(recipients)}")
-            
-            return {
-                'success': True,
-                'method': 'email',
-                'recipients': recipients,
-                'message': "Email sent successfully"
-            }
+            try:
+                server.login(config['mail_username'], config['mail_password'])
+                current_app.logger.info("Login successful")
+                
+                server.send_message(msg)
+                current_app.logger.info("Message sent")
+                
+                server.quit()
+                current_app.logger.info(f"Email sent successfully to {', '.join(recipients)}")
+                
+                return {
+                    'success': True,
+                    'method': 'email',
+                    'recipients': recipients,
+                    'message': "Email sent successfully"
+                }
+            except smtplib.SMTPAuthenticationError as auth_err:
+                error_str = str(auth_err)
+                current_app.logger.error(f"SMTP Authentication Error: {error_str}")
+                
+                # Special handling for Gmail's app-specific password requirement
+                if "Application-specific password required" in error_str:
+                    message = ("Gmail requires an App-specific password when 2FA is enabled. "
+                              "Please visit https://myaccount.google.com/apppasswords to generate one. "
+                              "Form was saved locally.")
+                    current_app.logger.warning("Gmail app-specific password required")
+                else:
+                    message = "Email sending failed due to authentication error. Form was saved locally."
+                
+                return {
+                    'success': False,
+                    'method': 'local',
+                    'error': f"Authentication failed: {error_str}",
+                    'message': message
+                }
+            except smtplib.SMTPException as smtp_err:
+                current_app.logger.error(f"SMTP Error: {str(smtp_err)}")
+                return {
+                    'success': False,
+                    'method': 'local',
+                    'error': f"SMTP error: {str(smtp_err)}",
+                    'message': "Email sending failed due to SMTP error. Form was saved locally."
+                }
             
         except Exception as e:
             current_app.logger.error(f"Error sending email: {str(e)}")
