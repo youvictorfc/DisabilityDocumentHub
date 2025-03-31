@@ -56,37 +56,13 @@
                         <i class="bi bi-question-circle me-1"></i>Ask About
                     </button>
                     {% if current_user.is_admin %}
-                    <button type="button" class="btn btn-danger btn-sm delete-button" 
-                            data-bs-toggle="modal" 
-                            data-bs-target="#deletePolicyModal{{ document.id }}">
+                    <button type="button" class="btn btn-danger btn-sm delete-policy-btn"
+                            data-doc-id="{{ document.id }}"
+                            data-doc-title="{{ document.title }}">
                         <i class="bi bi-trash me-1"></i>Delete
                     </button>
                     {% endif %}
                 </div>
-                
-                {% if current_user.is_admin %}
-                <!-- Delete confirmation modal -->
-                <div class="modal fade" id="deletePolicyModal{{ document.id }}" tabindex="-1" aria-labelledby="deletePolicyModalLabel{{ document.id }}" aria-hidden="true">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="deletePolicyModalLabel{{ document.id }}">Confirm Deletion</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <p>Are you sure you want to delete the document <strong>"{{ document.title }}"</strong>?</p>
-                                <p class="text-danger">This will permanently delete the document, its content, and file.</p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <form action="{{ url_for('policy.delete_policy', document_id=document.id) }}" method="post" class="delete-form">
-                                    <button type="submit" class="btn btn-danger delete-confirm-button">Delete Document</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -100,21 +76,37 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Single global delete confirmation modal -->
+<div class="modal fade" id="deletePolicyModal" tabindex="-1" aria-labelledby="deletePolicyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deletePolicyModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the document <strong id="policyTitleToDelete"></strong>?</p>
+                <p class="text-danger">This will permanently delete the document, its content, and file.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deletePolicyForm" method="post">
+                    <button type="submit" class="btn btn-danger delete-confirm-button">Delete Document</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    // Store the modals to prevent repeated initialization
-    let modalInstances = {};
-    
     document.addEventListener('DOMContentLoaded', function() {
-        // Pre-initialize all modals to prevent flickering
-        const allModals = document.querySelectorAll('.modal');
-        allModals.forEach(modalEl => {
-            modalInstances[modalEl.id] = new bootstrap.Modal(modalEl, {
-                backdrop: 'static',
-                keyboard: false
-            });
+        // Initialize the global modal once
+        const deleteModal = new bootstrap.Modal(document.getElementById('deletePolicyModal'), {
+            backdrop: 'static',
+            keyboard: false
         });
         
         // Search functionality
@@ -136,73 +128,65 @@
             });
         });
         
-        // Fix delete button flickering
-        const deleteButtons = document.querySelectorAll('.delete-button');
+        // Global delete button handler
+        const deleteButtons = document.querySelectorAll('.delete-policy-btn');
         deleteButtons.forEach(button => {
-            // Remove the data-bs-toggle and data-bs-target attributes
-            const modalId = button.getAttribute('data-bs-target').substring(1); // Remove the # prefix
-            button.removeAttribute('data-bs-toggle');
-            button.removeAttribute('data-bs-target');
-            
             button.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
                 
-                // Use the stored modal instance
-                if (modalInstances[modalId]) {
-                    modalInstances[modalId].show();
-                }
+                // Get document details
+                const docId = this.getAttribute('data-doc-id');
+                const docTitle = this.getAttribute('data-doc-title');
+                
+                // Update the modal content
+                document.getElementById('policyTitleToDelete').textContent = docTitle;
+                
+                // Set the form action
+                const deleteForm = document.getElementById('deletePolicyForm');
+                deleteForm.setAttribute('action', '/policies/' + docId + '/delete');
+                
+                // Show the modal
+                deleteModal.show();
             });
         });
         
-        // Handle delete form submission without page refresh
-        const deleteForms = document.querySelectorAll('.delete-form');
-        deleteForms.forEach(form => {
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
+        // Handle policy deletion
+        document.getElementById('deletePolicyForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Get the form action URL
+            const url = this.getAttribute('action');
+            const docId = url.split('/')[2]; // Get document ID from URL
+            
+            // Send a POST request
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide the modal
+                deleteModal.hide();
                 
-                // Find the modal this form is in
-                const modal = this.closest('.modal');
-                const modalId = modal.id;
-                
-                // Get the form action URL
-                const url = this.getAttribute('action');
-                
-                // Send a POST request
-                fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-Requested-With': 'XMLHttpRequest'
+                if (data.success) {
+                    // Find and remove the card
+                    const cardElement = document.querySelector(`.card[data-doc-id="${docId}"]`);
+                    if (cardElement) {
+                        cardElement.closest('.col').remove();
                     }
-                })
-                .then(response => {
-                    if (response.ok) {
-                        // Hide the modal using stored instance
-                        if (modalInstances[modalId]) {
-                            modalInstances[modalId].hide();
-                        }
-                        
-                        // Remove the card from the page
-                        const docId = url.split('/').pop();
-                        const cardToRemove = document.querySelector(`.card[data-doc-id="${docId}"]`);
-                        if (cardToRemove) {
-                            cardToRemove.closest('.col').remove();
-                        } else {
-                            // Reload the page if we can't find the card
-                            window.location.reload();
-                        }
-                    } else {
-                        // Show error message
-                        console.error('Failed to delete document');
-                        // Reload the page on error
-                        window.location.reload();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    window.location.reload();
-                });
+                } else {
+                    console.error('Failed to delete document:', data.message);
+                    alert('Error deleting document: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                deleteModal.hide();
+                alert('An error occurred while trying to delete the document.');
             });
         });
     });

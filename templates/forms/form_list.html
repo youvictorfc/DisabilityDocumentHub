@@ -51,37 +51,14 @@
                         <i class="bi bi-pencil-square me-1"></i>Continue Form
                     </a>
                     {% if current_user.is_admin %}
-                    <button type="button" class="btn btn-danger btn-sm delete-button" 
-                            data-bs-toggle="modal" 
-                            data-bs-target="#deleteFormModal{{ form.form_id }}">
+                    <button type="button" class="btn btn-danger btn-sm delete-form-btn" 
+                            data-form-id="{{ form.form_id }}"
+                            data-form-title="{{ form.form_title }}"
+                            data-form-type="in-progress">
                         <i class="bi bi-trash me-1"></i>Delete
                     </button>
                     {% endif %}
                 </div>
-                
-                {% if current_user.is_admin %}
-                <!-- Delete confirmation modal for in-progress forms -->
-                <div class="modal fade" id="deleteFormModal{{ form.form_id }}" tabindex="-1" aria-labelledby="deleteFormModalLabel{{ form.form_id }}" aria-hidden="true">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="deleteFormModalLabel{{ form.form_id }}">Confirm Deletion</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <p>Are you sure you want to delete the form <strong>"{{ form.form_title }}"</strong>?</p>
-                                <p class="text-danger">This will permanently delete the form, all responses, and associated files.</p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <form action="{{ url_for('form.delete_form', form_id=form.form_id) }}" method="post" class="delete-form">
-                                    <button type="submit" class="btn btn-danger delete-confirm-button">Delete Form</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -106,37 +83,14 @@
                         <i class="bi bi-pencil-square me-1"></i>Fill Form
                     </a>
                     {% if current_user.is_admin %}
-                    <button type="button" class="btn btn-danger btn-sm delete-button" 
-                            data-bs-toggle="modal" 
-                            data-bs-target="#deleteFormModal{{ form.id }}">
+                    <button type="button" class="btn btn-danger btn-sm delete-form-btn"
+                            data-form-id="{{ form.id }}"
+                            data-form-title="{{ form.title }}"
+                            data-form-type="template">
                         <i class="bi bi-trash me-1"></i>Delete
                     </button>
                     {% endif %}
                 </div>
-                
-                {% if current_user.is_admin %}
-                <!-- Delete confirmation modal -->
-                <div class="modal fade" id="deleteFormModal{{ form.id }}" tabindex="-1" aria-labelledby="deleteFormModalLabel{{ form.id }}" aria-hidden="true">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="deleteFormModalLabel{{ form.id }}">Confirm Deletion</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <p>Are you sure you want to delete the form <strong>"{{ form.title }}"</strong>?</p>
-                                <p class="text-danger">This will permanently delete the form, all responses, and associated files.</p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <form action="{{ url_for('form.delete_form', form_id=form.id) }}" method="post" class="delete-form">
-                                    <button type="submit" class="btn btn-danger delete-confirm-button">Delete Form</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -150,32 +104,61 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Single global delete confirmation modal -->
+<div class="modal fade" id="deleteFormModal" tabindex="-1" aria-labelledby="deleteFormModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteFormModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the form <strong id="formTitleToDelete"></strong>?</p>
+                <p class="text-danger">This will permanently delete the form and all associated responses and files.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteFormForm" method="post">
+                    <button type="submit" class="btn btn-danger delete-confirm-button">Delete Form</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    // Store the modals to prevent repeated initialization
-    let modalInstances = {};
-    
     document.addEventListener('DOMContentLoaded', function() {
-        // Pre-initialize all modals to prevent flickering
-        const allModals = document.querySelectorAll('.modal');
-        allModals.forEach(modalEl => {
-            modalInstances[modalEl.id] = new bootstrap.Modal(modalEl, {
-                backdrop: 'static',
-                keyboard: false
-            });
+        // Initialize the global modal once
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteFormModal'), {
+            backdrop: 'static',
+            keyboard: false
         });
         
         // Search functionality
         const searchInput = document.getElementById('form-search');
         const formCards = document.querySelectorAll('.form-card');
+        const inProgressCards = document.querySelectorAll('.in-progress-form-card');
         
         searchInput.addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase();
             
+            // Search in regular forms
             formCards.forEach(card => {
-                const title = card.dataset.formTitle.toLowerCase();
+                const title = card.dataset.formTitle?.toLowerCase() || '';
+                if (title.includes(searchTerm)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+            
+            // Also search in in-progress forms
+            inProgressCards.forEach(card => {
+                const cardTitle = card.querySelector('.card-title');
+                const title = cardTitle ? cardTitle.textContent.toLowerCase() : '';
                 if (title.includes(searchTerm)) {
                     card.style.display = '';
                 } else {
@@ -184,73 +167,72 @@
             });
         });
         
-        // Fix delete button flickering
-        const deleteButtons = document.querySelectorAll('.delete-button');
+        // Global delete button handler
+        const deleteButtons = document.querySelectorAll('.delete-form-btn');
         deleteButtons.forEach(button => {
-            // Remove the data-bs-toggle and data-bs-target attributes
-            const modalId = button.getAttribute('data-bs-target').substring(1); // Remove the # prefix
-            button.removeAttribute('data-bs-toggle');
-            button.removeAttribute('data-bs-target');
-            
             button.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
                 
-                // Use the stored modal instance
-                if (modalInstances[modalId]) {
-                    modalInstances[modalId].show();
-                }
+                // Get form details
+                const formId = this.getAttribute('data-form-id');
+                const formTitle = this.getAttribute('data-form-title');
+                
+                // Update the modal content
+                document.getElementById('formTitleToDelete').textContent = formTitle;
+                
+                // Set the form action
+                const deleteForm = document.getElementById('deleteFormForm');
+                deleteForm.setAttribute('action', '/forms/' + formId + '/delete');
+                
+                // Show the modal
+                deleteModal.show();
             });
         });
         
-        // Handle delete form submission without page refresh
-        const deleteForms = document.querySelectorAll('.delete-form');
-        deleteForms.forEach(form => {
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
+        // Handle form deletion
+        document.getElementById('deleteFormForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Get the form action URL
+            const url = this.getAttribute('action');
+            const formId = url.split('/').pop().replace('/delete', '');
+            
+            // Send a POST request
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide the modal
+                deleteModal.hide();
                 
-                // Find the modal this form is in
-                const modal = this.closest('.modal');
-                const modalId = modal.id;
-                
-                // Get the form action URL
-                const url = this.getAttribute('action');
-                
-                // Send a POST request
-                fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => {
-                    if (response.ok) {
-                        // Hide the modal using stored instance
-                        if (modalInstances[modalId]) {
-                            modalInstances[modalId].hide();
-                        }
-                        
-                        // Remove the card from the page
-                        const formId = url.split('/').pop();
-                        const cardToRemove = document.querySelector(`.card[data-form-id="${formId}"]`);
-                        if (cardToRemove) {
-                            cardToRemove.closest('.col').remove();
-                        } else {
-                            // Reload the page if we can't find the card
-                            window.location.reload();
-                        }
+                if (data.success) {
+                    // Find and remove the card, first check regular forms
+                    let cardElement = document.querySelector(`.card[data-form-id="${formId}"]`);
+                    if (cardElement) {
+                        cardElement.closest('.col').remove();
                     } else {
-                        // Show error message
-                        console.error('Failed to delete form');
-                        // Reload the page on error
-                        window.location.reload();
+                        // If not found, try in-progress forms
+                        document.querySelectorAll('.in-progress-form-card .card').forEach(card => {
+                            if (card.dataset.formId === formId) {
+                                card.closest('.col').remove();
+                            }
+                        });
                     }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    window.location.reload();
-                });
+                } else {
+                    console.error('Failed to delete form:', data.message);
+                    alert('Error deleting form: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                deleteModal.hide();
+                alert('An error occurred while trying to delete the form.');
             });
         });
     });

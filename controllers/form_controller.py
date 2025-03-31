@@ -360,6 +360,8 @@ def delete_form(form_id):
     form = Form.query.get_or_404(form_id)
     
     try:
+        form_title = form.title  # Store the title before deletion
+        
         # Delete form file if it exists
         if form.file_path and os.path.exists(form.file_path):
             os.remove(form.file_path)
@@ -388,10 +390,10 @@ def delete_form(form_id):
         if is_ajax_request:
             return jsonify({
                 'success': True,
-                'message': f'Form "{form.title}" deleted successfully'
+                'message': f'Form "{form_title}" deleted successfully'
             })
         else:
-            flash(f'Form "{form.title}" and all associated responses have been deleted', 'success')
+            flash(f'Form "{form_title}" and all associated responses have been deleted', 'success')
             return redirect(url_for('form.form_list'))
         
     except Exception as e:
