@@ -321,7 +321,7 @@ def submit_form(response_id):
             'answered_count': len(answers)
         }
         
-        # Send email with PDF to the user
+        # Send email with PDF to the user and Minto Disability Services
         email_result = send_form_email(
             recipient_email=current_user.email,
             form_title=form.title,
@@ -340,7 +340,7 @@ def submit_form(response_id):
         # Return success response
         return jsonify({
             'success': True,
-            'message': 'Form submitted successfully',
+            'message': 'Form submitted successfully and sent to Minto Disability Services',
             'email_sent': email_sent,
             'email_details': email_result
         })

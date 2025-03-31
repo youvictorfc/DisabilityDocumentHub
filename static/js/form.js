@@ -434,7 +434,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <h4>Form Submitted Successfully!</h4>
                         <p>Thank you for completing this form.</p>
                         ${data.email_sent ? 
-                            '<p>A copy of your completed form has been emailed to you.</p>' : 
+                            '<p>A copy of your completed form has been emailed to you and Minto Disability Services.</p>' : 
                             '<p>Note: We were unable to email a copy of your form.</p>'}
                         <div class="mt-4">
                             <a href="/forms" class="btn btn-primary">Return to Forms</a>
