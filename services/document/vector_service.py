@@ -51,6 +51,80 @@ def initialize_vector_db():
         index = faiss.IndexFlatL2(1536)
         id_mapping = {}
 
+# Function to rebuild the vector database from scratch
+def rebuild_vector_db():
+    """
+    Rebuild the vector database from scratch using the document chunks in the database.
+    This should be used when there's a mismatch between the vector database and the actual data.
+    """
+    global index, id_mapping
+    
+    try:
+        from app import db
+        from models import DocumentChunk
+        
+        # Create a new index
+        index = faiss.IndexFlatL2(1536)
+        id_mapping = {}
+        
+        # Get all document chunks from the database
+        chunks = DocumentChunk.query.all()
+        
+        if not chunks:
+            logging.warning("No document chunks found in the database to rebuild vector DB")
+            # Save the empty index and mapping
+            faiss.write_index(index, VECTOR_INDEX_PATH)
+            with open(VECTOR_MAPPING_PATH, 'w') as f:
+                json.dump(id_mapping, f)
+            return False
+            
+        # Add each chunk to the vector database
+        for chunk in chunks:
+            try:
+                # Skip if there's no content to embed
+                if not chunk.content:
+                    logging.warning(f"Skipping chunk {chunk.id} with no content")
+                    continue
+                    
+                # Generate embedding
+                embedding = generate_embeddings(chunk.content)
+                
+                # Convert to numpy array and reshape
+                vector = np.array(embedding).astype('float32').reshape(1, -1)
+                
+                # Add to index
+                index_id = index.ntotal  # Get the next available ID
+                index.add(vector)
+                
+                # Map Faiss index ID to chunk ID
+                id_mapping[str(index_id)] = chunk.id
+                
+                # Update the chunk's embedding_id in the database
+                chunk.embedding_id = str(index_id)
+                
+                logging.info(f"Successfully rebuilt vector embedding for chunk {chunk.id}")
+                
+            except Exception as e:
+                logging.error(f"Error rebuilding vector DB for chunk {chunk.id}: {str(e)}")
+                continue
+        
+        # Save the index and mapping
+        faiss.write_index(index, VECTOR_INDEX_PATH)
+        with open(VECTOR_MAPPING_PATH, 'w') as f:
+            json.dump(id_mapping, f)
+            
+        # Commit the changes to the database
+        db.session.commit()
+        
+        logging.info(f"Successfully rebuilt vector database with {index.ntotal} embeddings")
+        return True
+        
+    except Exception as e:
+        logging.error(f"Error rebuilding vector database: {str(e)}")
+        if 'db' in locals():
+            db.session.rollback()
+        return False
+
 # Initialize on import
 initialize_vector_db()
 

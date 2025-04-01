@@ -6,9 +6,46 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatMessages = document.getElementById('chat-messages');
     const chatForm = document.getElementById('chat-form');
     const questionInput = document.getElementById('question-input');
+    const rebuildButton = document.getElementById('rebuild-vector-db');
+    const rebuildStatus = document.getElementById('rebuild-status');
     
     // Check if we're on the policy assistant page
     if (!chatContainer) return;
+    
+    // Initialize the rebuild vector database functionality if available
+    if (rebuildButton) {
+        rebuildButton.addEventListener('click', function() {
+            if (!confirm('Are you sure you want to rebuild the vector database? This operation may take some time.')) {
+                return;
+            }
+            
+            rebuildButton.disabled = true;
+            rebuildStatus.innerHTML = '<span class="text-warning">Rebuilding vector database... Please wait.</span>';
+            
+            fetch('/policies/assistant/rebuild-vector-db', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    rebuildStatus.innerHTML = '<span class="text-success">Vector database rebuilt successfully!</span>';
+                    // Add a message to the chat
+                    addMessage('assistant', 'The vector database has been rebuilt successfully. You can now search for policy information.');
+                } else {
+                    rebuildStatus.innerHTML = '<span class="text-danger">Error rebuilding vector database: ' + (data.message || 'Unknown error') + '</span>';
+                }
+                rebuildButton.disabled = false;
+            })
+            .catch(error => {
+                console.error('Error rebuilding vector database:', error);
+                rebuildStatus.innerHTML = '<span class="text-danger">Error connecting to server while rebuilding vector database.</span>';
+                rebuildButton.disabled = false;
+            });
+        });
+    }
     
     // Message history
     let messageHistory = [];

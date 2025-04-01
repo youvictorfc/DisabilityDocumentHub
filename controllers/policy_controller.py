@@ -79,7 +79,38 @@ def upload_policy():
 @policy_bp.route('/assistant')
 @login_required
 def policy_assistant():
-    return render_template('policies/policy_assistant.html')
+    # Get all policy documents for reference
+    documents = Document.query.all()
+    
+    # Allow admins to rebuild vector DB if needed
+    rebuild_option = current_user.is_admin
+    
+    return render_template('policies/policy_assistant.html', documents=documents, rebuild_option=rebuild_option)
+
+@policy_bp.route('/assistant/rebuild-vector-db', methods=['POST'])
+@login_required
+def rebuild_vector_database():
+    """Rebuild the vector database from scratch using existing document chunks"""
+    # Only administrators can rebuild the vector database
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Only administrators can rebuild the vector database'}), 403
+    
+    try:
+        from services.document.vector_service import rebuild_vector_db
+        
+        # Rebuild the vector database
+        success = rebuild_vector_db()
+        
+        if success:
+            current_app.logger.info("Vector database rebuilt successfully")
+            return jsonify({'success': True, 'message': 'Vector database rebuilt successfully'})
+        else:
+            current_app.logger.warning("Failed to rebuild vector database")
+            return jsonify({'success': False, 'message': 'Failed to rebuild vector database'}), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error rebuilding vector database: {str(e)}")
+        return jsonify({'success': False, 'message': f'Error rebuilding vector database: {str(e)}'}), 500
 
 @policy_bp.route('/assistant/query', methods=['POST'])
 @login_required
@@ -107,7 +138,14 @@ def query_assistant():
         
         for result in search_results:
             chunk = DocumentChunk.query.get(result['chunk_id'])
+            if chunk is None:
+                current_app.logger.warning(f"Could not find chunk with ID {result['chunk_id']}")
+                continue
+                
             document = Document.query.get(chunk.document_id)
+            if document is None:
+                current_app.logger.warning(f"Could not find document with ID {chunk.document_id}")
+                continue
             
             contexts.append(chunk.content)
             sources.append({
@@ -117,6 +155,14 @@ def query_assistant():
                 'relevance_score': result['score']
             })
         
+        # Check if we have any valid contexts to work with
+        if not contexts:
+            return jsonify({
+                'success': True, 
+                'answer': "I couldn't find any valid information in the policy documents related to your query.",
+                'sources': []
+            })
+            
         # Generate answer with context
         answer = generate_answer_with_context(query, contexts)
         

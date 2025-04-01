@@ -55,6 +55,16 @@
                     <li>Find specific policy information quickly</li>
                 </ul>
                 <p class="mb-0 small text-muted">This tool searches across all uploaded policy documents in the system.</p>
+                
+                {% if rebuild_option %}
+                <div class="mt-3 pt-3 border-top">
+                    <h6>Administrator Tools</h6>
+                    <button id="rebuild-vector-db" class="btn btn-warning btn-sm">
+                        <i class="bi bi-arrow-repeat"></i> Rebuild Vector Database
+                    </button>
+                    <div id="rebuild-status" class="mt-2 small"></div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
