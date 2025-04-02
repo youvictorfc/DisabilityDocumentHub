@@ -11,6 +11,7 @@ from openai import OpenAI
 # Import our specialized templates for different form types
 from services.form.incident_form_template import get_incident_form_template, is_incident_form
 from services.form.audit_checklist_template import get_access_audit_checklist_template, is_access_audit_checklist
+from services.form.advocate_form_template import get_advocate_form_template, is_advocate_form
 
 class FormProcessor:
     """Service for processing forms, extracting questions, and managing form structure."""
@@ -652,6 +653,25 @@ class FormProcessor:
             form_structure = {
                 "title": form_name,
                 "description": description or "Access Audit Checklist",
+                "questions": questions
+            }
+            
+            return {
+                "structure": form_structure,
+                "validation": {
+                    "complete": True,
+                    "issues": []
+                }
+            }
+            
+        if is_advocate_form(file_path):
+            current_app.logger.info("Detected Act as an Advocate Form, using specialized template")
+            questions = get_advocate_form_template()
+            
+            # Create the form structure with the specialized template
+            form_structure = {
+                "title": form_name,
+                "description": description or "Act as an Advocate Form",
                 "questions": questions
             }
             
