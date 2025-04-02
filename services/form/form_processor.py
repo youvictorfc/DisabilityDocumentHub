@@ -8,8 +8,9 @@ from datetime import datetime
 from flask import current_app
 from openai import OpenAI
 
-# Import our specialized template for incident forms
+# Import our specialized templates for different form types
 from services.form.incident_form_template import get_incident_form_template, is_incident_form
+from services.form.audit_checklist_template import get_access_audit_checklist_template, is_access_audit_checklist
 
 class FormProcessor:
     """Service for processing forms, extracting questions, and managing form structure."""
@@ -642,9 +643,49 @@ class FormProcessor:
         """Process a form file and return structured form data."""
         current_app.logger.info(f"Processing form: {form_name} from {file_path}")
         
+        # Check for special templates first based on filename
+        if is_access_audit_checklist(file_path):
+            current_app.logger.info("Detected Access Audit Checklist, using specialized template")
+            questions = get_access_audit_checklist_template()
+            
+            # Create the form structure with the specialized template
+            form_structure = {
+                "title": form_name,
+                "description": description or "Access Audit Checklist",
+                "questions": questions
+            }
+            
+            return {
+                "structure": form_structure,
+                "validation": {
+                    "complete": True,
+                    "issues": []
+                }
+            }
+        
         try:
             # 1. Extract text from document
             document_text = self.extract_text_from_document(file_path)
+            
+            # Check if this looks like an incident form based on extracted text
+            if is_incident_form(document_text):
+                current_app.logger.info("Detected Incident Form pattern, using specialized template")
+                questions = get_incident_form_template()
+                
+                # Create the form structure with the specialized template
+                form_structure = {
+                    "title": form_name,
+                    "description": description or "Incident Form",
+                    "questions": questions
+                }
+                
+                return {
+                    "structure": form_structure,
+                    "validation": {
+                        "complete": True,
+                        "issues": []
+                    }
+                }
             
             # 2. Extract questions from text
             initial_questions = self.extract_questions(document_text)

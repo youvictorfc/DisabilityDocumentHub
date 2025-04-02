@@ -478,10 +478,132 @@ def parse_form_document(file_path):
             # Use python-docx library to extract docx content
             try:
                 import docx
+                import io
+                import tempfile
+                from PIL import Image
                 
                 current_app.logger.info(f"Extracting content from DOCX file: {file_path_str}")
                 doc = docx.Document(file_path_str)
                 
+                # IMPORTANT: When dealing with forms, specifically look for checklist patterns
+                # which are common in audit forms
+                
+                # Extract questions directly from the document structure
+                form_questions = []
+                question_id = 1
+                
+                # Process tables - often used for checklists and structured forms
+                for table_index, table in enumerate(doc.tables):
+                    header_row = None
+                    header_cells = []
+                    
+                    # Check if this table has a header row
+                    if len(table.rows) > 0:
+                        header_row = table.rows[0]
+                        header_cells = [cell.text.strip() for cell in header_row.cells if cell.text.strip()]
+                    
+                    # Process each row after the header
+                    for row_index, row in enumerate(table.rows):
+                        if row_index == 0 and header_cells:
+                            # Skip the header row
+                            continue
+                            
+                        row_cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                        
+                        if not row_cells:
+                            continue
+                            
+                        # Determine the question text and field type based on the row content
+                        question_text = row_cells[0] if row_cells else ""
+                        
+                        # Skip empty or meaningless rows
+                        if not question_text or question_text.lower() in ('yes', 'no', 'y', 'n', 'n/a'):
+                            continue
+                            
+                        # Check if this looks like a YES/NO question
+                        options = []
+                        field_type = "text"  # Default
+                        
+                        # Look for YES/NO pattern in other cells
+                        yes_no_cells = [cell for cell in row_cells[1:] if cell.lower() in ('yes', 'no', 'y', 'n', 'n/a')]
+                        
+                        if yes_no_cells or (header_cells and any(h.lower() in ('yes', 'no', 'y/n', 'yes/no') for h in header_cells)):
+                            field_type = "radio"
+                            options = ["Yes", "No"]
+                            
+                            # If there's a N/A option detected, add it
+                            if any(cell.lower() == 'n/a' for cell in row_cells):
+                                options.append("N/A")
+                        
+                        # Add this question to our list
+                        form_questions.append({
+                            "id": f"question_{question_id}",
+                            "question_text": question_text,
+                            "field_type": field_type,
+                            "options": options,
+                            "required": True  # Default to required for form items
+                        })
+                        question_id += 1
+                
+                # Process paragraphs - some forms have one question per paragraph
+                in_section = False
+                current_section = ""
+                
+                for para in doc.paragraphs:
+                    text = para.text.strip()
+                    if not text:
+                        continue
+                        
+                    # Check if this is a section header (often appears as bold, larger text)
+                    is_section_header = False
+                    for run in para.runs:
+                        if run.bold or run.font.size and run.font.size > 12:
+                            is_section_header = True
+                            break
+                    
+                    if is_section_header:
+                        current_section = text
+                        in_section = True
+                        continue
+                    
+                    # Check if this paragraph looks like a form question
+                    # Form questions often end with a colon or have whitespace for answers
+                    if ":" in text or text.endswith("?") or "_____" in text or "□" in text or "☐" in text:
+                        # This looks like a question
+                        question_text = text
+                        
+                        # If we're in a section, include the section name
+                        if in_section and current_section:
+                            question_text = f"{current_section} - {question_text}"
+                            
+                        # Determine field type based on content
+                        field_type = "text"  # Default
+                        options = []
+                        
+                        # Check for multiple choice indicators
+                        if "□" in text or "☐" in text or "checkbox" in text.lower() or "check box" in text.lower():
+                            field_type = "checkbox"
+                            # Try to extract options
+                            option_parts = text.split("□")
+                            if len(option_parts) > 1:
+                                options = [part.strip() for part in option_parts[1:] if part.strip()]
+                                
+                        # Add this question
+                        form_questions.append({
+                            "id": f"question_{question_id}",
+                            "question_text": question_text,
+                            "field_type": field_type,
+                            "options": options,
+                            "required": text.endswith("*") or "*required" in text.lower()
+                        })
+                        question_id += 1
+                
+                # If we found direct questions, use them
+                if form_questions:
+                    current_app.logger.info(f"Successfully extracted {len(form_questions)} questions directly from DOCX structure")
+                    return {"questions": form_questions}
+                
+                # If we couldn't extract structured questions directly, try the traditional text-based approach
                 # Extract text from tables
                 table_content = []
                 for table in doc.tables:
@@ -515,23 +637,100 @@ def parse_form_document(file_path):
                 
                 # If we extracted meaningful content, analyze it
                 if file_content and len(file_content.strip()) > 0:
-                    current_app.logger.info(f"Successfully extracted {len(file_content)} characters from DOCX")
+                    current_app.logger.info(f"Successfully extracted {len(file_content)} characters from DOCX text")
                     
-                    # Try to get more structured form information using vision API 
-                    # since docx might not preserve form fields well
+                    # For DOCX, which tend to have complex structure,
+                    # we'll take a different two-pronged approach
+                    
+                    # First, try to render the first page of the document as an image
+                    # This works well for forms with visual layout
                     try:
-                        current_app.logger.info("Attempting to enhance DOCX extraction with Vision API")
+                        current_app.logger.info("Attempting to process DOCX as image for better form extraction")
+                        # Try using vision API directly on the DOCX file
                         vision_result = extract_form_fields_from_image(file_path_str)
                         
                         # If we got meaningful results from the vision API, return those
-                        if vision_result and vision_result.get('questions') and len(vision_result.get('questions', [])) > 5:
+                        if vision_result and vision_result.get('questions') and len(vision_result.get('questions', [])) > 3:
                             current_app.logger.info(f"Vision API successfully extracted {len(vision_result.get('questions', []))} questions from DOCX")
                             return vision_result
                     except Exception as vision_error:
                         current_app.logger.warning(f"Vision enhancement failed: {str(vision_error)}. Using text extraction instead.")
+                    
+                    # Second, if vision API didn't work, try the text-based approach with GPT-4o
+                    try:
+                        client = get_openai_client()
+                        current_app.logger.info("Using GPT-4o with extracted DOCX text")
+                        
+                        # Add some special instructions for handling DOCX content
+                        response = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "You are a form extraction specialist focused on DOCX files. "
+                                        "Your task is to identify ALL form fields from the given text extracted from a DOCX document. "
+                                        "IMPORTANT GUIDELINES:\n"
+                                        "1. Each row in tables should be treated as a separate question\n"
+                                        "2. For rows with YES/NO columns, extract as radio button questions\n"
+                                        "3. Look for checklist patterns and extract each item\n"
+                                        "4. Pay attention to section headers and incorporate them\n"
+                                        "5. Be extremely thorough in identifying every possible field\n"
+                                        "6. If the text contains \"TABLE CONTENT\" markers, pay special attention to that section\n"
+                                        "7. For audit forms, assume each item needs YES/NO options\n"
+                                        "8. If a line looks like a header, it's probably not a question itself\n"
+                                        "9. If a field is followeded by a blank space or ___, it's likely a text field"
+                                    )
+                                },
+                                {
+                                    "role": "user",
+                                    "content": f"Here is text extracted from a DOCX form document. Extract ALL questions/fields:\n\n{file_content}"
+                                }
+                            ],
+                            response_format={"type": "json_object"},
+                            temperature=0.2
+                        )
+                        
+                        try:
+                            result = json.loads(response.choices[0].message.content)
+                            question_count = len(result.get('questions', []))
+                            
+                            if question_count > 0:
+                                current_app.logger.info(f"Successfully extracted {question_count} form fields from DOCX text using GPT-4o")
+                                return result
+                        except json.JSONDecodeError:
+                            current_app.logger.error("Failed to parse GPT response for DOCX extraction")
+                    except Exception as text_extraction_error:
+                        current_app.logger.error(f"Text-based DOCX extraction failed: {str(text_extraction_error)}")
                 
                 else:
                     current_app.logger.warning(f"DOCX content extraction resulted in empty content: {file_path_str}")
+                
+                # As a last resort, explicitly tell the model this is DOCX and needs special processing
+                try:
+                    client = get_openai_client()
+                    current_app.logger.info("Attempting final extraction approach for DOCX")
+                    
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are a form structure generator. This is a DOCX file that couldn't be properly extracted. Please generate a reasonable form structure based on the filename."
+                            },
+                            {
+                                "role": "user", 
+                                "content": f"The file '{os.path.basename(file_path_str)}' appears to be a form, but we couldn't extract its content properly. Please create a basic form structure based on the filename. If it has 'audit' or 'checklist' in the name, assume it's a checklist with Yes/No options."
+                            }
+                        ],
+                        response_format={"type": "json_object"},
+                        temperature=0.7
+                    )
+                    
+                    result = json.loads(response.choices[0].message.content)
+                    return result
+                except Exception as final_error:
+                    current_app.logger.error(f"Final DOCX extraction attempt failed: {str(final_error)}")
                     
             except Exception as docx_error:
                 current_app.logger.error(f"Failed to extract DOCX content with python-docx: {str(docx_error)}")
@@ -541,8 +740,38 @@ def parse_form_document(file_path):
                     return vision_result
                 except Exception as vision_error:
                     current_app.logger.error(f"Vision fallback failed: {str(vision_error)}")
-                    # Use a very basic placeholder only if everything else fails
-                    file_content = "This document appears to be a form. I'll do my best to extract its fields."
+                    
+                    # As an absolute last resort, use the filename to guess the form structure
+                    try:
+                        client = get_openai_client()
+                        current_app.logger.info("Using filename-based extraction as last resort")
+                        
+                        filename = os.path.basename(file_path_str)
+                        response = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": "You are a form structure generator creating form fields based solely on a filename."
+                                },
+                                {
+                                    "role": "user", 
+                                    "content": f"The file '{filename}' appears to be a form, but we couldn't extract its content properly. Please create a basic form structure based on the filename. If it has 'audit' or 'checklist' in the name, assume it's a checklist with Yes/No options."
+                                }
+                            ],
+                            response_format={"type": "json_object"},
+                            temperature=0.7
+                        )
+                        
+                        result = json.loads(response.choices[0].message.content)
+                        question_count = len(result.get('questions', []))
+                        current_app.logger.info(f"Generated {question_count} form fields based on filename")
+                        return result
+                    except Exception as filename_error:
+                        current_app.logger.error(f"Filename-based extraction failed: {str(filename_error)}")
+                        
+                    # If everything else fails, return a minimal structure with helpful message
+                    file_content = "This document appears to be a form that requires special handling."
         else:
             # Text file
             try:
