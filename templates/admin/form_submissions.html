@@ -1,0 +1,218 @@
+{% extends 'base.html' %}
+
+{% block title %}Form Submissions | Admin Panel{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">Form Submissions</h1>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Filter Submissions</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{{ url_for('admin.form_submissions') }}" class="row g-3">
+                <div class="col-md-4">
+                    <label for="form_id" class="form-label">Form Template</label>
+                    <select name="form_id" id="form_id" class="form-select">
+                        <option value="">All Forms</option>
+                        {% for form in forms %}
+                        <option value="{{ form.id }}" {% if selected_filters.form_id == form.id %}selected{% endif %}>
+                            {{ form.title }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="user_id" class="form-label">User</label>
+                    <select name="user_id" id="user_id" class="form-select">
+                        <option value="">All Users</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}" {% if selected_filters.user_id == user.id %}selected{% endif %}>
+                            {{ user.username }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="status" class="form-label">Status</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="">All Statuses</option>
+                        <option value="complete" {% if selected_filters.status == 'complete' %}selected{% endif %}>Completed</option>
+                        <option value="incomplete" {% if selected_filters.status == 'incomplete' %}selected{% endif %}>In Progress</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="start_date" class="form-label">Start Date</label>
+                    <input type="date" class="form-control" id="start_date" name="start_date" 
+                           value="{{ selected_filters.start_date or '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="end_date" class="form-label">End Date</label>
+                    <input type="date" class="form-control" id="end_date" name="end_date" 
+                           value="{{ selected_filters.end_date or '' }}">
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="d-grid gap-2 d-md-flex w-100">
+                        <button type="submit" class="btn btn-primary flex-grow-1">
+                            <i class="bi bi-filter me-1"></i>Apply Filters
+                        </button>
+                        <a href="{{ url_for('admin.form_submissions') }}" class="btn btn-outline-secondary flex-grow-1">
+                            <i class="bi bi-x-circle me-1"></i>Clear Filters
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header d-flex justify-content-between">
+            <h5 class="mb-0">All Submissions</h5>
+            <span class="badge bg-primary">{{ submissions|length }} Results</span>
+        </div>
+        <div class="card-body p-0">
+            {% if submissions %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">ID</th>
+                            <th scope="col">Form</th>
+                            <th scope="col">User</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Created</th>
+                            <th scope="col">Submitted</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for submission in submissions %}
+                        <tr>
+                            <td>{{ submission.id }}</td>
+                            <td>{{ submission.form.title }}</td>
+                            <td>{{ submission.user.username }}</td>
+                            <td>
+                                {% if submission.is_complete %}
+                                <span class="badge bg-success">Completed</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">In Progress</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ submission.created_at.strftime('%Y-%m-%d') }}</td>
+                            <td>
+                                {% if submission.submitted_at %}
+                                {{ submission.submitted_at.strftime('%Y-%m-%d') }}
+                                {% else %}
+                                <em>Not submitted</em>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    {% if submission.is_complete and submission.pdf_path %}
+                                    <a href="{{ url_for('admin.download_submission_pdf', response_id=submission.id) }}" 
+                                       class="btn btn-outline-primary" title="Download PDF">
+                                        <i class="bi bi-file-pdf"></i>
+                                    </a>
+                                    {% endif %}
+                                    
+                                    <!-- Button to view form details - implement later if needed -->
+                                    <button type="button" class="btn btn-outline-info view-submission" 
+                                            data-response-id="{{ submission.id }}" title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info m-3">
+                <i class="bi bi-info-circle me-2"></i>No form submissions found matching the selected filters.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- View Form Submission Modal -->
+<div class="modal fade" id="viewSubmissionModal" tabindex="-1" aria-labelledby="viewSubmissionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewSubmissionModalLabel">Form Submission Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center py-5" id="submissionLoadingSpinner">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading submission details...</p>
+                </div>
+                <div id="submissionDetails" style="display: none;">
+                    <!-- Will be populated via JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" id="downloadPdfLink" class="btn btn-primary" style="display: none;">
+                    <i class="bi bi-file-pdf me-1"></i>Download PDF
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Submission details view functionality - for future implementation
+        const viewButtons = document.querySelectorAll('.view-submission');
+        const submissionModal = new bootstrap.Modal(document.getElementById('viewSubmissionModal'));
+        const submissionDetails = document.getElementById('submissionDetails');
+        const loadingSpinner = document.getElementById('submissionLoadingSpinner');
+        const downloadPdfLink = document.getElementById('downloadPdfLink');
+        
+        viewButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const responseId = this.getAttribute('data-response-id');
+                
+                // Reset modal state
+                submissionDetails.style.display = 'none';
+                loadingSpinner.style.display = 'block';
+                downloadPdfLink.style.display = 'none';
+                
+                // Show modal
+                submissionModal.show();
+                
+                // For now, we'll just show a placeholder message
+                // In the future, we can implement an AJAX call to get submission details
+                setTimeout(() => {
+                    loadingSpinner.style.display = 'none';
+                    submissionDetails.style.display = 'block';
+                    submissionDetails.innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Detailed view for submission #${responseId} will be implemented soon.
+                        </div>
+                        <p>This feature will show all form responses in a readable format.</p>
+                    `;
+                    
+                    // Set up the download link if the submission is complete
+                    const row = button.closest('tr');
+                    const isComplete = row.querySelector('.badge.bg-success') !== null;
+                    
+                    if (isComplete) {
+                        downloadPdfLink.href = `/admin/submissions/${responseId}/download-pdf`;
+                        downloadPdfLink.style.display = 'inline-block';
+                    }
+                }, 500);
+            });
+        });
+    });
+</script>
+{% endblock %}

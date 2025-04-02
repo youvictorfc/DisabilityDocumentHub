@@ -58,6 +58,7 @@
                             {% if current_user.is_admin %}
                             <li><a class="dropdown-item" href="{{ url_for('form.upload_form') }}">Upload Form</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('policy.upload_policy') }}">Upload Policy</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin.form_submissions') }}">Form Submissions</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('admin.user_list') }}">User Management</a></li>
                             <li><hr class="dropdown-divider"></li>
                             {% endif %}
