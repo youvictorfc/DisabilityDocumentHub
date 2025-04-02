@@ -441,7 +441,14 @@ def generate_answer_with_context(question, contexts):
                     "content": (
                         "You are an assistant for Minto Disability Services. Answer questions about policies and procedures "
                         "based solely on the provided context. If you don't find the information in the context, say so clearly. "
-                        "Do not make up information. Be concise but thorough. When appropriate, cite specific policies by name."
+                        "Do not make up information. Be concise but thorough. When appropriate, cite specific policies by name.\n\n"
+                        "FORMATTING GUIDELINES:\n"
+                        "1. Do NOT use markdown formatting, asterisks, or other special characters for emphasis\n"
+                        "2. Use plain text formatting with regular paragraph breaks for readability\n"
+                        "3. For lists, use simple numbering (1, 2, 3) or bullet points with hyphens (-)\n"
+                        "4. If information varies by category, use clear headers with colons (Example: 'Full-Time Employees:')\n"
+                        "5. Organize information in a clean, readable manner without any special formatting characters\n"
+                        "6. Never use asterisks (**) for emphasis or headings"
                     )
                 },
                 {

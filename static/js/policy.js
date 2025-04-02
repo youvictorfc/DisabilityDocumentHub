@@ -106,8 +106,31 @@ document.addEventListener('DOMContentLoaded', function() {
                     sourcesHtml += '</ul></div>';
                 }
                 
+                // Format the answer for better readability
+                let formattedAnswer = data.answer;
+                
+                // Replace any remaining asterisks with normal text (remove markdown)
+                formattedAnswer = formattedAnswer.replace(/\*\*/g, '').replace(/\*/g, '');
+                
+                // Format paragraphs with proper spacing
+                formattedAnswer = formattedAnswer.split('\n\n').map(para => 
+                    `<p>${para.trim()}</p>`
+                ).join('');
+                
+                // Format lists
+                formattedAnswer = formattedAnswer.replace(/(\n[-*]\s+.*)+/g, function(match) {
+                    const items = match.trim().split(/\n[-*]\s+/).filter(item => item);
+                    return '<ul>' + items.map(item => `<li>${item}</li>`).join('') + '</ul>';
+                });
+                
+                // Format numbered lists
+                formattedAnswer = formattedAnswer.replace(/(\n\d+\.\s+.*)+/g, function(match) {
+                    const items = match.trim().split(/\n\d+\.\s+/).filter(item => item);
+                    return '<ol>' + items.map(item => `<li>${item}</li>`).join('') + '</ol>';
+                });
+                
                 // Add answer with sources
-                addMessage('assistant', data.answer + sourcesHtml);
+                addMessage('assistant', formattedAnswer + sourcesHtml);
             } else {
                 addMessage('assistant', 'Sorry, I encountered an error: ' + (data.message || 'Unknown error'));
             }
