@@ -649,11 +649,19 @@ class FormProcessor:
             current_app.logger.info("Detected Access Audit Checklist, using specialized template")
             questions = get_access_audit_checklist_template()
             
+            # Extract original text for completeness
+            try:
+                document_text = self.extract_text_from_document(file_path)
+            except Exception as e:
+                current_app.logger.warning(f"Could not extract original text from Access Audit Checklist: {str(e)}")
+                document_text = "Access Audit Checklist - Unable to extract full original text"
+                
             # Create the form structure with the specialized template
             form_structure = {
                 "title": form_name,
                 "description": description or "Access Audit Checklist",
-                "questions": questions
+                "questions": questions,
+                "original_text": document_text
             }
             
             return {
@@ -668,11 +676,19 @@ class FormProcessor:
             current_app.logger.info("Detected Act as an Advocate Form, using specialized template")
             questions = get_advocate_form_template()
             
+            # Extract original text for completeness
+            try:
+                document_text = self.extract_text_from_document(file_path)
+            except Exception as e:
+                current_app.logger.warning(f"Could not extract original text from Act as an Advocate Form: {str(e)}")
+                document_text = "Act as an Advocate Form - Unable to extract full original text"
+                
             # Create the form structure with the specialized template
             form_structure = {
                 "title": form_name,
                 "description": description or "Act as an Advocate Form",
-                "questions": questions
+                "questions": questions,
+                "original_text": document_text
             }
             
             return {
@@ -692,11 +708,13 @@ class FormProcessor:
                 current_app.logger.info("Detected Incident Form pattern, using specialized template")
                 questions = get_incident_form_template()
                 
+                # Use the already extracted document text for the incident form
                 # Create the form structure with the specialized template
                 form_structure = {
                     "title": form_name,
                     "description": description or "Incident Form",
-                    "questions": questions
+                    "questions": questions,
+                    "original_text": document_text
                 }
                 
                 return {
@@ -787,12 +805,13 @@ class FormProcessor:
                 
                 processed_questions.append(processed_question)
             
-            # 5. Create form structure
+            # 5. Create form structure with original text
             form_structure = {
-                "questions": processed_questions
+                "questions": processed_questions,
+                "original_text": document_text  # Include the full original text
             }
             
-            current_app.logger.info(f"Final structured form has {len(processed_questions)} questions")
+            current_app.logger.info(f"Final structured form has {len(processed_questions)} questions and {len(document_text)} characters of original text")
             
             # 6. Create the full form data object
             form_data = {

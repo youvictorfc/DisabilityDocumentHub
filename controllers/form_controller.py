@@ -203,12 +203,16 @@ def upload_form():
                         os.remove(file_path)
                     return render_template('forms/form_upload.html')
             
+            # Get original text from form structure if available
+            original_text = form_structure.get('original_text', '')
+            
             # Create form record with additional metadata
             new_form = Form(
                 title=title,
                 description=description,
                 file_path=file_path,
                 structure=json.dumps(form_structure),
+                original_text=original_text,
                 created_at=datetime.utcnow(),
                 user_id=current_user.id  # Track which admin uploaded the form
             )
@@ -395,8 +399,12 @@ def edit_form(form_id):
                     if questions_count == 0:
                         raise ValueError("No questions could be extracted from the form document. Please try a different file or format.")
                 
+                # Get original text from form structure if available
+                original_text = form_structure.get('original_text', '')
+                
                 # Update form structure in the database
                 form.structure = json.dumps(form_structure)
+                form.original_text = original_text
                 questions_count = len(form_structure.get('questions', []))
                 flash(f'Form updated with new document. {questions_count} questions extracted.', 'success')
                 
