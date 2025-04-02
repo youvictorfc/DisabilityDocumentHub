@@ -54,22 +54,6 @@
     </h1>
     <p class="mb-4">{{ form.description }}</p>
     
-    <!-- Original Form Text Collapsible Section -->
-    <div class="card mb-4">
-        <div class="card-header" id="originalTextHeader">
-            <h5 class="mb-0">
-                <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#originalTextContent" aria-expanded="false" aria-controls="originalTextContent">
-                    View Original Form Text
-                </button>
-            </h5>
-        </div>
-        <div id="originalTextContent" class="collapse" aria-labelledby="originalTextHeader">
-            <div class="card-body">
-                <pre class="bg-dark text-light p-3 overflow-auto" style="max-height: 400px;">{{ form.original_text|default('Original text not available for this form.', true) }}</pre>
-            </div>
-        </div>
-    </div>
-    
     <div class="progress">
         <div id="form-progress" class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
     </div>

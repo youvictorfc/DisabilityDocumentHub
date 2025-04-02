@@ -29,7 +29,6 @@ class Form(db.Model):
     description = db.Column(db.Text)
     file_path = db.Column(db.String(255))
     structure = db.Column(db.Text)  # JSON structure of form questions
-    original_text = db.Column(db.Text)  # Full original text from the form document
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     is_deleted = db.Column(db.Boolean, default=False)  # Soft delete flag
