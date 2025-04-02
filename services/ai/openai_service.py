@@ -67,7 +67,14 @@ def verify_field_extraction_completeness(image_path, base64_image, extracted_fie
                         "You are a form verification expert with exceptional attention to detail. "
                         "Your task is to verify whether ALL form fields have been properly extracted from a form image. "
                         "You will be given a list of already extracted fields and the original form image. "
-                        "Your job is to identify any fields that might have been missed or incompletely extracted."
+                        "Your job is to identify any fields that might have been missed or incompletely extracted.\n\n"
+                        
+                        "SPECIAL ATTENTION AREAS:\n"
+                        "1. Checklist forms - Each row in a checklist should be a separate field\n"
+                        "2. Tables with YES/NO columns - Each row should be captured as a radio button question\n"
+                        "3. Audit forms - Every audit item should be captured separately\n"
+                        "4. Multi-section forms - Section headers should be included with items\n"
+                        "5. Forms with multiple columns - Ensure all columns are properly captured"
                     )
                 },
                 {
@@ -84,7 +91,10 @@ def verify_field_extraction_completeness(image_path, base64_image, extracted_fie
                                 "2. Small or faint text fields\n"
                                 "3. Instructions or guidance text\n"
                                 "4. Fields in unusual locations (footers, margins, etc.)\n"
-                                "5. Tables or grid structures where fields might be missed\n\n"
+                                "5. Tables or grid structures - EACH ROW should typically be extracted as a separate field\n"
+                                "6. Checklist forms with YES/NO columns - each row should be a separate question with options\n"
+                                "7. Audit forms - each audit item should be extracted separately\n"
+                                "8. Forms with sections and subsections - section headers should be included\n\n"
                                 "Please respond with your assessment as a JSON object with:\n"
                                 "{\n"
                                 "    \"complete\": true|false (whether the extraction seems complete),\n"
@@ -161,6 +171,10 @@ def extract_form_fields_from_image(image_path):
                             "4. For complex forms with multiple sections or tables, process sequentially (usually top-to-bottom, left-to-right)\n"
                             "5. Never add explanatory text to fields that isn't present in the original\n"
                             "6. If you're uncertain about field content, include what you can see and note uncertainty with [?] in field labels\n\n"
+                            "7. For tabular forms with YES/NO columns or checklists, extract EACH ROW as a separate question\n"
+                            "8. Pay special attention to tables - extract EVERY ROW as a separate question\n"
+                            "9. For forms with sections and subsections, include section titles as part of the question text\n"
+                            "10. For audit forms or checklists with YES/NO options, use radio button field types\n\n"
                             
                             "You must return your output as a structured JSON in the following format (EXACTLY):\n"
                             "{\n"
@@ -190,7 +204,11 @@ def extract_form_fields_from_image(image_path):
                                     "3. Look for form field indicators like colons, underlines, or checkboxes\n"
                                     "4. Do not skip ANY fields, even if they seem minor or redundant\n"
                                     "5. Maintain the EXACT original wording and formatting of all labels\n"
-                                    "6. For fields with options (like radio buttons), extract all options exactly\n\n"
+                                    "6. For fields with options (like radio buttons), extract all options exactly\n"
+                                    "7. For tables, extract EACH ROW as a separate question with options where applicable\n"
+                                    "8. For checklists or forms with YES/NO columns, make each row a separate radio question\n"
+                                    "9. In a multi-section form, include the section headers as part of the question text\n"
+                                    "10. For tables with multiple columns of checkboxes, convert each row to a question with options\n\n"
                                     "Format your response as structured JSON with a 'questions' array in the SAME ORDER they appear on the form. Include:\n"
                                     "1. A unique 'id' for each field (use field_1, field_2, etc.)\n"
                                     "2. 'question_text': The EXACT text of the field/question as it appears\n"
@@ -243,7 +261,14 @@ def extract_form_fields_from_image(image_path):
                                     "role": "system", 
                                     "content": """You are a form field extraction specialist focusing on filling in missing information. 
                                     You will be given a list of potentially missed form fields and your task is to extract 
-                                    the exact information for these fields from the image."""
+                                    the exact information for these fields from the image.
+                                    
+                                    SPECIAL FOCUS AREAS:
+                                    1. Tables - each row should be extracted as a separate question
+                                    2. Checklists - each item should be extracted as a separate field
+                                    3. Forms with YES/NO columns - each row should be a question with YES and NO as options
+                                    4. Audit-style forms - each audit item should be extracted completely
+                                    5. Section headers - include these as part of question text"""
                                 },
                                 {
                                     "role": "user",
@@ -260,11 +285,14 @@ def extract_form_fields_from_image(image_path):
                                             EXTRACTION ISSUES IDENTIFIED:
                                             {issues_str}
                                             
-                                            INSTRUCTIONS:
+                                            EXTRACTION INSTRUCTIONS:
                                             1. Focus ONLY on the potentially missed fields listed above
                                             2. Extract the EXACT text for each field as it appears in the form
                                             3. Include the appropriate field type and whether it appears to be required
                                             4. For multiple choice fields, extract all available options
+                                            5. For tables with YES/NO columns, extract each row as a radio button question
+                                            6. For checklists, extract each item as a separate field
+                                            7. For audit forms, make sure to include section headers and extract every item
                                             
                                             Format your response as a JSON object with a 'questions' array containing 
                                             the missing fields with the exact same structure as the standard extraction.
@@ -328,8 +356,14 @@ def extract_form_fields_from_image(image_path):
                         "content": (
                             "You are a form extraction expert for Minto Disability Services. Your task is to analyze the provided document "
                             "(image or text) of a form and extract ALL form fields/questions EXACTLY as they appear in the original. "
-                            "IMPORTANT: Do NOT rephrase, modify, or add any questions. Preserve the original text and formatting exactly. "
-                            "Extract the precise label text for every field. Do not summarize or generalize fields. Be extremely literal in your extraction."
+                            "IMPORTANT GUIDELINES:\n"
+                            "1. Do NOT rephrase, modify, or add any questions. Preserve the original text and formatting exactly\n"
+                            "2. Extract the precise label text for every field. Do not summarize or generalize fields\n"
+                            "3. Be extremely literal in your extraction\n"
+                            "4. For tables with YES/NO columns, extract EACH ROW as a separate question with YES and NO as options\n"
+                            "5. For forms with sections or categories, include the section name as part of the question text\n"
+                            "6. Pay special attention to audit checklists, which should be extracted as individual questions\n"
+                            "7. Extract EVERY table row as a separate field, and include column headers if relevant"
                         )
                     },
                     {
@@ -441,9 +475,74 @@ def parse_form_document(file_path):
             
             file_content = text
         elif file_path_str.endswith('.docx'):
-            # In a production app, you'd use python-docx library
-            # For now, use a placeholder incident form structure
-            file_content = "This is an incident report form for Minto Disability Services. The form requires the following information: incident date, incident time, incident location, persons involved, incident description, severity level (minor, moderate, severe), whether medical attention was required, any immediate actions taken, and reporter details including name, position, contact information, and signature."
+            # Use python-docx library to extract docx content
+            try:
+                import docx
+                
+                current_app.logger.info(f"Extracting content from DOCX file: {file_path_str}")
+                doc = docx.Document(file_path_str)
+                
+                # Extract text from tables
+                table_content = []
+                for table in doc.tables:
+                    for i, row in enumerate(table.rows):
+                        row_texts = []
+                        for cell in row.cells:
+                            if cell.text.strip():
+                                row_texts.append(cell.text.strip())
+                        
+                        if row_texts:
+                            # Join the row cells with appropriate separators
+                            if i == 0:  # First row might be headers
+                                table_content.append(" | ".join(row_texts))
+                            else:
+                                # For YES/NO columns in forms, format specially
+                                if any(cell.lower() in ('yes', 'no', 'y', 'n') for cell in row_texts):
+                                    # First cell is usually the question text
+                                    question = row_texts[0] if row_texts else ""
+                                    # Other cells might be YES/NO
+                                    options = [cell for cell in row_texts[1:] if cell.lower() in ('yes', 'no', 'y', 'n')]
+                                    table_content.append(f"{question} [Options: {', '.join(options)}]")
+                                else:
+                                    table_content.append(" - ".join(row_texts))
+                
+                # Extract regular paragraphs
+                paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+                
+                # Combine all content with appropriate separation
+                all_content = paragraphs + ["\n\nTABLE CONTENT:\n"] + table_content if table_content else paragraphs
+                file_content = "\n".join(all_content)
+                
+                # If we extracted meaningful content, analyze it
+                if file_content and len(file_content.strip()) > 0:
+                    current_app.logger.info(f"Successfully extracted {len(file_content)} characters from DOCX")
+                    
+                    # Try to get more structured form information using vision API 
+                    # since docx might not preserve form fields well
+                    try:
+                        current_app.logger.info("Attempting to enhance DOCX extraction with Vision API")
+                        vision_result = extract_form_fields_from_image(file_path_str)
+                        
+                        # If we got meaningful results from the vision API, return those
+                        if vision_result and vision_result.get('questions') and len(vision_result.get('questions', [])) > 5:
+                            current_app.logger.info(f"Vision API successfully extracted {len(vision_result.get('questions', []))} questions from DOCX")
+                            return vision_result
+                    except Exception as vision_error:
+                        current_app.logger.warning(f"Vision enhancement failed: {str(vision_error)}. Using text extraction instead.")
+                
+                else:
+                    current_app.logger.warning(f"DOCX content extraction resulted in empty content: {file_path_str}")
+                    
+            except Exception as docx_error:
+                current_app.logger.error(f"Failed to extract DOCX content with python-docx: {str(docx_error)}")
+                # Try to use vision API as a fallback for docx files
+                try:
+                    vision_result = extract_form_fields_from_image(file_path_str)
+                    return vision_result
+                except Exception as vision_error:
+                    current_app.logger.error(f"Vision fallback failed: {str(vision_error)}")
+                    # Use a very basic placeholder only if everything else fails
+                    file_content = "This document appears to be a form. I'll do my best to extract its fields."
         else:
             # Text file
             try:
@@ -490,8 +589,16 @@ def parse_form_document(file_path):
                     "content": (
                         "You are a form parsing assistant for Minto Disability Services with special focus on EXACT field extraction. "
                         "Your task is to extract ALL questions and fields from the provided form document EXACTLY as they appear in the original. "
-                        "IMPORTANT: Do NOT rephrase, modify, combine, or add any questions. Preserve the original text, formatting, and order exactly. "
-                        "Extract the precise label text for every field. Do not summarize or generalize fields. Be extremely literal in your extraction. "
+                        "IMPORTANT GUIDELINES:\n"
+                        "1. Do NOT rephrase, modify, combine, or add any questions. Preserve the original text, formatting, and order exactly\n"
+                        "2. Extract the precise label text for every field. Do not summarize or generalize fields\n"
+                        "3. Be extremely literal in your extraction\n"
+                        "4. For tables, extract EACH ROW as a separate question\n"
+                        "5. For tables with YES/NO columns, make each row a radio question with YES and NO as options\n"
+                        "6. For checklist forms, extract every checklist item as a separate field\n"
+                        "7. In forms with sections/categories, include the section name as part of the question text\n"
+                        "8. For audit forms with multiple columns (like YES/NO), extract each item as a question with options\n\n"
+                        
                         "For each field, identify: "
                         "1. A unique 'id' (use a simple index number or field name without modifying the text) "
                         "2. 'question_text' (the EXACT and COMPLETE text of the field/question as it appears on the form, including any numbering or formatting) "
