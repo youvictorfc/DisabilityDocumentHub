@@ -44,7 +44,7 @@ def upload_form():
     if not current_user.is_admin:
         flash('Only administrators can upload forms', 'danger')
         return redirect(url_for('form.form_list'))
-    
+        
     if request.method == 'POST':
         title = request.form.get('title')
         description = request.form.get('description')
@@ -202,6 +202,158 @@ def upload_form():
             return render_template('forms/form_upload.html')
     
     return render_template('forms/form_upload.html')
+
+@form_bp.route('/<int:form_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_form(form_id):
+    """Allow administrators to edit a form's title, description, and optionally replace the document"""
+    if not current_user.is_admin:
+        flash('Only administrators can edit forms', 'danger')
+        return redirect(url_for('form.form_list'))
+    
+    form = Form.query.get_or_404(form_id)
+    
+    if form.is_deleted:
+        flash('Cannot edit a deleted form', 'danger')
+        return redirect(url_for('form.form_list'))
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        file = request.files.get('form_file')
+        
+        if not title:
+            flash('Form title is required', 'danger')
+            return render_template('forms/form_edit.html', form=form)
+        
+        # Update basic form information
+        form.title = title
+        form.description = description
+        
+        # Only process file if a new one was uploaded
+        if file and file.filename:
+            # Check file extension
+            supported_extensions = {'pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'txt', 'doc', 'docx'}
+            file_extension = ''
+            
+            if '.' in file.filename:
+                file_extension = file.filename.rsplit('.', 1)[1].lower()
+            
+            if not file_extension or file_extension not in supported_extensions:
+                flash(f'File type "{file_extension}" not supported. Please use PDF, JPG, PNG, GIF, or TXT formats.', 'danger')
+                return render_template('forms/form_edit.html', form=form)
+                
+            # Check file size - OpenAI has limits (typically ~20-25MB)
+            max_size_mb = 20
+            if file.content_length and file.content_length > max_size_mb * 1024 * 1024:
+                file_size_mb = file.content_length / (1024 * 1024)
+                flash(f'File too large ({file_size_mb:.1f} MB). Maximum size is {max_size_mb} MB.', 'danger')
+                return render_template('forms/form_edit.html', form=form)
+            
+            # Delete the old file if it exists
+            if form.file_path and os.path.exists(form.file_path):
+                try:
+                    os.remove(form.file_path)
+                    current_app.logger.info(f"Deleted old form file: {form.file_path}")
+                except Exception as e:
+                    current_app.logger.error(f"Error deleting old form file: {str(e)}")
+            
+            # Save the new file
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(current_app.config['FORM_UPLOAD_FOLDER'], filename)
+            file.save(file_path)
+            form.file_path = file_path
+            
+            # Make sure upload directory exists
+            os.makedirs(current_app.config['FORM_UPLOAD_FOLDER'], exist_ok=True)
+            
+            try:
+                # Extract form structure using OpenAI - preserve EXACT questions and order
+                current_app.logger.info(f"Re-extracting form structure from new file: {file_path}")
+                
+                # Flag to track if we should use OpenAI extraction
+                use_openai_extraction = True
+                
+                # Special case for the Incident Form
+                if "incident" in filename.lower() or (file_extension.lower() in ["docx"] and filename.lower().find("incident") != -1):
+                    current_app.logger.info("Detected an incident form upload, checking if we should use specialized template")
+                    # Import directly here to avoid circular imports
+                    from services.form.incident_form_template import get_incident_form_template, is_incident_form
+                    
+                    # For docx files, we immediately use the template
+                    if filename.lower().endswith(".docx"):
+                        current_app.logger.info("Using incident form template for .docx file")
+                        form_structure = {
+                            "questions": get_incident_form_template()
+                        }
+                        questions_count = len(form_structure.get('questions', []))
+                        current_app.logger.info(f"Using incident form template with {questions_count} fields")
+                        use_openai_extraction = False
+                    # For other file types, we try to extract content and check if it looks like an incident form
+                    else:
+                        try:
+                            # Try to extract text content if applicable
+                            from services.document.document_service import extract_text_from_file
+                            content = extract_text_from_file(file_path)
+                            if content and is_incident_form(content):
+                                current_app.logger.info("Detected incident form content, using specialized template")
+                                form_structure = {
+                                    "questions": get_incident_form_template()
+                                }
+                                questions_count = len(form_structure.get('questions', []))
+                                current_app.logger.info(f"Using incident form template with {questions_count} fields")
+                                use_openai_extraction = False
+                            else:
+                                # Not an incident form or couldn't extract content, proceed to normal extraction
+                                current_app.logger.info("Content doesn't appear to be an incident form, proceeding with normal extraction")
+                        except Exception as e:
+                            current_app.logger.info(f"Error checking if file is an incident form: {str(e)}")
+                
+                # Use OpenAI extraction if we haven't already used a template
+                if use_openai_extraction:
+                    # Extract the form structure
+                    form_structure = extract_form_structure(file_path)
+                    
+                    # Log the extracted structure for debugging
+                    current_app.logger.debug(f"Extracted form structure: {json.dumps(form_structure)[:500]}...")
+                    
+                    # Validate the extracted structure
+                    questions_count = len(form_structure.get('questions', []))
+                    current_app.logger.info(f"Successfully extracted {questions_count} questions in their exact original form")
+                    
+                    # Check if we have a reasonable number of questions
+                    if questions_count == 0:
+                        raise ValueError("No questions could be extracted from the form document. Please try a different file or format.")
+                
+                # Update form structure in the database
+                form.structure = json.dumps(form_structure)
+                questions_count = len(form_structure.get('questions', []))
+                flash(f'Form updated with new document. {questions_count} questions extracted.', 'success')
+                
+            except Exception as extraction_error:
+                current_app.logger.error(f"Form extraction error during edit: {str(extraction_error)}")
+                flash(f'Error extracting form fields from new document: {str(extraction_error)}', 'danger')
+                
+                # Clean up the file
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                return render_template('forms/form_edit.html', form=form)
+        else:
+            # If no new file was uploaded, just update the basic info
+            flash('Form information updated successfully.', 'success')
+        
+        # Save the changes
+        try:
+            db.session.commit()
+            return redirect(url_for('form.form_list'))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error updating form: {str(e)}")
+            flash(f'Error updating form: {str(e)}', 'danger')
+            return render_template('forms/form_edit.html', form=form)
+    
+    # GET request - show the edit form
+    return render_template('forms/form_edit.html', form=form)
 
 @form_bp.route('/<int:form_id>/fill', methods=['GET'])
 @login_required
@@ -393,28 +545,23 @@ def delete_form(form_id):
         form.deleted_at = datetime.utcnow()
         db.session.commit()
         
-        current_app.logger.info(f"Form ID {form_id} marked as deleted successfully")
-        
-        # Check if this is an AJAX request
-        is_ajax_request = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-        
-        if is_ajax_request:
+        # Return JSON if AJAX request, otherwise redirect
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 'success': True,
-                'message': f'Form "{form_title}" deleted successfully'
+                'message': f'Form "{form_title}" deleted successfully.'
             })
         else:
-            flash(f'Form "{form_title}" has been deleted', 'success')
+            flash(f'Form "{form_title}" deleted successfully.', 'success')
             return redirect(url_for('form.form_list'))
-        
+    
     except Exception as e:
-        db.session.rollback()
         current_app.logger.error(f"Error deleting form: {str(e)}")
         
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 'success': False,
-                'message': f'Error deleting form: {str(e)}'
+                'message': f'Error: {str(e)}'
             }), 500
         else:
             flash(f'Error deleting form: {str(e)}', 'danger')
