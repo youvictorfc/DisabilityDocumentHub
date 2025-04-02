@@ -39,7 +39,12 @@
             <div class="card h-100" data-form-id="{{ form.form_id }}">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
-                        <h5 class="card-title">{{ form.form_title }}</h5>
+                        <h5 class="card-title">
+                            {{ form.form_title }}
+                            {% if form.is_deleted_form %}
+                            <span class="badge bg-danger ms-1">Deleted</span>
+                            {% endif %}
+                        </h5>
                         <span class="badge bg-warning text-dark">In Progress</span>
                     </div>
                     <p class="card-text text-muted">
@@ -120,7 +125,8 @@
             </div>
             <div class="modal-body">
                 <p>Are you sure you want to delete the form <strong id="formTitleToDelete"></strong>?</p>
-                <p class="text-danger">This will permanently delete the form and all associated responses and files.</p>
+                <p>The form template will be marked as deleted, but all completed responses will still be accessible.</p>
+                <p class="text-danger"><i class="bi bi-info-circle me-1"></i> The form file will be permanently removed from the server.</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

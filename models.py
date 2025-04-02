@@ -31,6 +31,8 @@ class Form(db.Model):
     structure = db.Column(db.Text)  # JSON structure of form questions
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    is_deleted = db.Column(db.Boolean, default=False)  # Soft delete flag
+    deleted_at = db.Column(db.DateTime, nullable=True)  # When the form was deleted
     
     # Relationships
     responses = db.relationship('FormResponse', backref='form', lazy=True)

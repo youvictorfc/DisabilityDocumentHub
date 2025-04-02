@@ -15,7 +15,8 @@ form_bp = Blueprint('form', __name__, url_prefix='/forms')
 @form_bp.route('/')
 @login_required
 def form_list():
-    forms = Form.query.all()
+    # Only show forms that haven't been soft-deleted
+    forms = Form.query.filter_by(is_deleted=False).all()
     
     # Get user's in-progress forms
     user_responses = FormResponse.query.filter_by(
@@ -25,12 +26,15 @@ def form_list():
     
     in_progress_forms = []
     for response in user_responses:
-        in_progress_forms.append({
-            'form_id': response.form_id,
-            'form_title': response.form.title,
-            'response_id': response.id,
-            'updated_at': response.updated_at
-        })
+        # Only include responses for non-deleted forms or include all if admin
+        if not response.form.is_deleted or current_user.is_admin:
+            in_progress_forms.append({
+                'form_id': response.form_id,
+                'form_title': response.form.title + (" (Deleted)" if response.form.is_deleted else ""),
+                'response_id': response.id,
+                'updated_at': response.updated_at,
+                'is_deleted_form': response.form.is_deleted
+            })
     
     return render_template('forms/form_list.html', forms=forms, in_progress_forms=in_progress_forms)
 
@@ -204,6 +208,11 @@ def upload_form():
 def fill_form(form_id):
     form = Form.query.get_or_404(form_id)
     
+    # Check if the form has been soft-deleted
+    if form.is_deleted and not current_user.is_admin:
+        flash('This form is no longer available.', 'danger')
+        return redirect(url_for('form.form_list'))
+    
     # Check if there's an existing in-progress response
     existing_response = FormResponse.query.filter_by(
         form_id=form_id,
@@ -247,6 +256,11 @@ def save_form_progress(response_id):
     if response.user_id != current_user.id:
         return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
+    # Check if the form has been deleted
+    form = Form.query.get(response.form_id)
+    if form.is_deleted and not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'This form is no longer available for editing.'}), 403
+    
     data = request.json
     answers = data.get('answers', {})
     
@@ -267,6 +281,11 @@ def submit_form(response_id):
         return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
     form = Form.query.get(response.form_id)
+    
+    # Check if the form has been soft-deleted and user is not an admin
+    if form.is_deleted and not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'This form is no longer available for submission.'}), 403
+        
     data = request.json
     answers = data.get('answers', {})
     
@@ -353,7 +372,7 @@ def submit_form(response_id):
 @form_bp.route('/<int:form_id>/delete', methods=['POST'])
 @login_required
 def delete_form(form_id):
-    """Delete a form and its associated file"""
+    """Soft delete a form while preserving its associated responses"""
     if not current_user.is_admin:
         flash('Only administrators can delete forms', 'danger')
         return redirect(url_for('form.form_list'))
@@ -361,29 +380,20 @@ def delete_form(form_id):
     form = Form.query.get_or_404(form_id)
     
     try:
-        form_title = form.title  # Store the title before deletion
+        form_title = form.title  # Store the title before modification
         
-        # Delete form file if it exists
+        # Only delete the form file if it exists
         if form.file_path and os.path.exists(form.file_path):
             os.remove(form.file_path)
             current_app.logger.info(f"Deleted form file: {form.file_path}")
+            form.file_path = None  # Clear the file path reference
         
-        # Delete form responses and their associated PDF files
-        responses = FormResponse.query.filter_by(form_id=form_id).all()
-        for response in responses:
-            # Delete PDF if it exists
-            if response.pdf_path and os.path.exists(response.pdf_path):
-                os.remove(response.pdf_path)
-                current_app.logger.info(f"Deleted response PDF: {response.pdf_path}")
-            
-            # Delete response
-            db.session.delete(response)
-        
-        # Delete form
-        db.session.delete(form)
+        # Mark the form as deleted instead of actually deleting it
+        form.is_deleted = True
+        form.deleted_at = datetime.utcnow()
         db.session.commit()
         
-        current_app.logger.info(f"Form ID {form_id} deleted successfully")
+        current_app.logger.info(f"Form ID {form_id} marked as deleted successfully")
         
         # Check if this is an AJAX request
         is_ajax_request = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
@@ -394,7 +404,7 @@ def delete_form(form_id):
                 'message': f'Form "{form_title}" deleted successfully'
             })
         else:
-            flash(f'Form "{form_title}" and all associated responses have been deleted', 'success')
+            flash(f'Form "{form_title}" has been deleted', 'success')
             return redirect(url_for('form.form_list'))
         
     except Exception as e:

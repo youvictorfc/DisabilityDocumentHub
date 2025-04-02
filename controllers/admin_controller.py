@@ -74,6 +74,13 @@ def form_submissions():
     elif status == 'incomplete':
         query = query.filter(FormResponse.is_complete == False)
     
+    # Add option to filter by deleted forms
+    deleted_status = request.args.get('deleted_status')
+    if deleted_status == 'only_active':
+        query = query.join(Form).filter(Form.is_deleted == False)
+    elif deleted_status == 'only_deleted':
+        query = query.join(Form).filter(Form.is_deleted == True)
+    
     if start_date:
         try:
             start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
@@ -105,7 +112,8 @@ def form_submissions():
                               'user_id': user_id,
                               'status': status,
                               'start_date': start_date,
-                              'end_date': end_date
+                              'end_date': end_date,
+                              'deleted_status': deleted_status
                           })
 
 @admin_bp.route('/submissions/<int:response_id>/download-pdf', methods=['GET'])

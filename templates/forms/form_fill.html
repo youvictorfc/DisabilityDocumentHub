@@ -46,7 +46,12 @@
         </ol>
     </nav>
     
-    <h1 class="mb-2">{{ form.title }}</h1>
+    <h1 class="mb-2">
+        {{ form.title }}
+        {% if form.is_deleted %}
+        <span class="badge bg-danger ms-2">Deleted Form</span>
+        {% endif %}
+    </h1>
     <p class="mb-4">{{ form.description }}</p>
     
     <div class="progress">

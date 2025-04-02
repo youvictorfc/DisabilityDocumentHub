@@ -43,6 +43,14 @@
                     </select>
                 </div>
                 <div class="col-md-4">
+                    <label for="deleted_status" class="form-label">Form Template Status</label>
+                    <select name="deleted_status" id="deleted_status" class="form-select">
+                        <option value="">All Forms</option>
+                        <option value="only_active" {% if selected_filters.deleted_status == 'only_active' %}selected{% endif %}>Active Forms Only</option>
+                        <option value="only_deleted" {% if selected_filters.deleted_status == 'only_deleted' %}selected{% endif %}>Deleted Forms Only</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
                     <label for="start_date" class="form-label">Start Date</label>
                     <input type="date" class="form-control" id="start_date" name="start_date" 
                            value="{{ selected_filters.start_date or '' }}">
@@ -90,7 +98,12 @@
                         {% for submission in submissions %}
                         <tr>
                             <td>{{ submission.id }}</td>
-                            <td>{{ submission.form.title }}</td>
+                            <td>
+                                {{ submission.form.title }}
+                                {% if submission.form.is_deleted %}
+                                <span class="badge bg-danger ms-1">Deleted</span>
+                                {% endif %}
+                            </td>
                             <td>{{ submission.user.username }}</td>
                             <td>
                                 {% if submission.is_complete %}
