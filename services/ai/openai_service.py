@@ -40,6 +40,99 @@ def encode_image_to_base64(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
+def verify_field_extraction_completeness(image_path, base64_image, extracted_fields):
+    """
+    Verify that all potential form fields in the image have been extracted.
+    Returns potential missed fields and a completeness assessment.
+    """
+    client = get_openai_client()
+    
+    try:
+        # Format the extracted fields for the verification prompt
+        field_list = []
+        for i, field in enumerate(extracted_fields):
+            field_text = field.get('question_text', field.get('label', ''))
+            if field_text:
+                field_list.append(f"{i+1}. {field_text}")
+        
+        field_summary = "\n".join(field_list) if field_list else "No fields were extracted."
+        
+        # Make verification API call
+        verification_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a form verification expert with exceptional attention to detail. "
+                        "Your task is to verify whether ALL form fields have been properly extracted from a form image. "
+                        "You will be given a list of already extracted fields and the original form image. "
+                        "Your job is to identify any fields that might have been missed or incompletely extracted."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                f"I've extracted {len(extracted_fields)} fields from this form image.\n\n"
+                                f"EXTRACTED FIELDS:\n{field_summary}\n\n"
+                                "Please carefully examine the image and identify any form fields, questions, checkboxes, "
+                                "or input areas that might have been missed in the extraction. Pay special attention to:\n"
+                                "1. Headers or section titles that might be important context\n"
+                                "2. Small or faint text fields\n"
+                                "3. Instructions or guidance text\n"
+                                "4. Fields in unusual locations (footers, margins, etc.)\n"
+                                "5. Tables or grid structures where fields might be missed\n\n"
+                                "Please respond with your assessment as a JSON object with:\n"
+                                "{\n"
+                                "    \"complete\": true|false (whether the extraction seems complete),\n"
+                                "    \"issues\": [\"issue 1\", \"issue 2\", ...],\n"
+                                "    \"suggestions\": [\"suggestion 1\", \"suggestion 2\", ...],\n"
+                                "    \"missed_questions\": [\"missed question 1\", \"missed question 2\", ...]\n"
+                                "}"
+                            )
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.3
+        )
+        
+        verification_result = json.loads(verification_response.choices[0].message.content)
+        
+        # Log verification results
+        is_complete = verification_result.get('complete', False)
+        missed_questions = verification_result.get('missed_questions', [])
+        issues = verification_result.get('issues', [])
+        
+        if not is_complete:
+            current_app.logger.warning("Question extraction may be incomplete")
+            for issue in issues:
+                current_app.logger.warning(f"Validation issue: {issue}")
+            for missed in missed_questions:
+                current_app.logger.warning(f"Potentially missed field: {missed}")
+        
+        return verification_result
+        
+    except Exception as e:
+        current_app.logger.error(f"Error during extraction verification: {str(e)}")
+        # Return a default structure if verification fails
+        return {
+            "complete": False,
+            "issues": [f"Verification error: {str(e)}"],
+            "suggestions": ["Proceed with caution as verification failed"],
+            "missed_questions": []
+        }
+
 def extract_form_fields_from_image(image_path):
     """Extract form fields from an image using GPT-4o multimodal capabilities with enhanced handling for challenging images"""
     client = get_openai_client()
@@ -124,9 +217,98 @@ def extract_form_fields_from_image(image_path):
             question_count = len(result.get('questions', []))
             current_app.logger.info(f"Successfully extracted {question_count} form fields from image using GPT-4o")
             
+            # Run verification if we have less than the expected number of fields
+            # Or if the question count is suspiciously low
+            if question_count < 10:
+                verification_result = verify_field_extraction_completeness(image_path, base64_image, result.get('questions', []))
+                
+                # If verification found missed questions, do a second extraction pass focused on those areas
+                if not verification_result.get('complete', True) and verification_result.get('missed_questions'):
+                    current_app.logger.info("Verification identified potentially missed fields. Performing targeted extraction.")
+                    
+                    # Construct a prompt for a second extraction pass focused on the missed areas
+                    missed_questions = verification_result.get('missed_questions', [])
+                    issues = verification_result.get('issues', [])
+                    
+                    # Format missed questions for the prompt
+                    missed_str = "\n".join([f"- {q}" for q in missed_questions])
+                    issues_str = "\n".join([f"- {i}" for i in issues])
+                    
+                    try:
+                        current_app.logger.info(f"Performing focused extraction for {len(missed_questions)} potentially missed fields")
+                        focused_response = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {
+                                    "role": "system", 
+                                    "content": """You are a form field extraction specialist focusing on filling in missing information. 
+                                    You will be given a list of potentially missed form fields and your task is to extract 
+                                    the exact information for these fields from the image."""
+                                },
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {
+                                            "type": "text",
+                                            "text": f"""
+                                            The initial form extraction missed some important fields. Please focus ONLY on 
+                                            extracting the following potentially missed fields from the image:
+                                            
+                                            POTENTIALLY MISSED FIELDS:
+                                            {missed_str}
+                                            
+                                            EXTRACTION ISSUES IDENTIFIED:
+                                            {issues_str}
+                                            
+                                            INSTRUCTIONS:
+                                            1. Focus ONLY on the potentially missed fields listed above
+                                            2. Extract the EXACT text for each field as it appears in the form
+                                            3. Include the appropriate field type and whether it appears to be required
+                                            4. For multiple choice fields, extract all available options
+                                            
+                                            Format your response as a JSON object with a 'questions' array containing 
+                                            the missing fields with the exact same structure as the standard extraction.
+                                            """
+                                        },
+                                        {
+                                            "type": "image_url",
+                                            "image_url": {
+                                                "url": f"data:image/jpeg;base64,{base64_image}"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ],
+                            response_format={"type": "json_object"},
+                            temperature=0.2
+                        )
+                        
+                        # Extract and combine the results
+                        try:
+                            supplementary_result = json.loads(focused_response.choices[0].message.content)
+                            supplementary_questions = supplementary_result.get('questions', [])
+                            
+                            current_app.logger.info(f"Successfully extracted {len(supplementary_questions)} additional fields")
+                            
+                            # Combine the original questions with the supplementary ones
+                            if supplementary_questions:
+                                # Generate unique IDs for the supplementary questions
+                                for i, q in enumerate(supplementary_questions):
+                                    q['id'] = f"supplementary_{i+1}"
+                                
+                                # Add to the original result
+                                result['questions'].extend(supplementary_questions)
+                                current_app.logger.info(f"Combined extraction now has {len(result['questions'])} fields")
+                        except json.JSONDecodeError as e:
+                            current_app.logger.error(f"Failed to parse supplementary extraction: {str(e)}")
+                            # Continue with the original extraction
+                    except Exception as focused_error:
+                        current_app.logger.error(f"Error in focused extraction: {str(focused_error)}")
+                        # Continue with the original extraction
+            
             # If we got a reasonable number of questions, return the result
             # Some legitimate forms might have only a few fields
-            if question_count >= 3:
+            if question_count >= 1 or len(result.get('questions', [])) >= 1:
                 return result
             else:
                 current_app.logger.warning(f"GPT-4o only extracted {question_count} fields, which seems insufficient. Trying alternative model.")

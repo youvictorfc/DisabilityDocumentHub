@@ -518,23 +518,50 @@ class FormProcessor:
         
         return basic_fields
             
-    def validate_questions(self, questions: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Validate the extracted questions for completeness and consistency."""
+    def validate_questions(self, questions: List[Dict[str, Any]], document_text: str = None) -> Dict[str, Any]:
+        """
+        Validate the extracted questions for completeness and consistency.
+        If document_text is provided, perform a deeper verification against the original text.
+        """
         current_app.logger.info(f"Validating {len(questions)} extracted questions")
         
         # Prepare question list for validation
-        question_texts = "\n".join([f"{i+1}. {q.get('question', 'Unknown question')}" for i, q in enumerate(questions)])
+        question_key = 'question_text' if any('question_text' in q for q in questions) else 'question'
+        question_texts = "\n".join([f"{i+1}. {q.get(question_key, q.get('question', 'Unknown question'))}" for i, q in enumerate(questions)])
+        
+        # If we have the original document text, we can do a more thorough validation
+        context_section = ""
+        if document_text and len(document_text) > 0:
+            # Limit the document text to prevent token limit issues
+            max_context_length = 3000
+            if len(document_text) > max_context_length:
+                context_section = f"""
+                ORIGINAL DOCUMENT TEXT (partial):
+                {document_text[:max_context_length]}
+                ... [truncated] ...
+                """
+            else:
+                context_section = f"""
+                ORIGINAL DOCUMENT TEXT:
+                {document_text}
+                """
         
         prompt = f"""
         Review these {len(questions)} questions extracted from a form and identify any issues:
         
+        EXTRACTED QUESTIONS:
         {question_texts}
         
-        Issues to look for:
-        1. Missing questions (check for numerical sequences, lettered items, or logical gaps)
-        2. Incomplete questions (missing parts or context)
-        3. Questions that should be split into multiple questions
-        4. Questions that are not questions (instructions, headers, etc.)
+        {context_section}
+        
+        VALIDATION TASKS:
+        1. Check for missing questions (look for numerical sequences, lettered items, or logical gaps)
+        2. Identify incomplete questions (missing parts or context)
+        3. Find questions that should be split into multiple questions
+        4. Look for questions that are not questions (instructions, headers, etc.)
+        5. Compare with the original document text (if provided) to spot missed fields
+        6. Verify if any fields are mentioned in the text but not in the extracted questions
+        7. Check for form elements like checkboxes, signature lines, or date fields that may have been missed
         
         Format your response as a JSON object with:
         {{
@@ -553,35 +580,61 @@ class FormProcessor:
                 messages=[
                     {
                         "role": "system", 
-                        "content": "You are a form validation system. Your task is to ensure that all questions from a form have been correctly extracted."
+                        "content": """You are a specialized form validation expert. Your task is to analyze extracted form 
+                        questions for completeness, accuracy and thoroughness. You have exceptional attention to detail
+                        and can identify subtle patterns that might indicate missing questions. You are particularly 
+                        attentive to number sequences, section headings, and standard form components like signature 
+                        fields that might be missed in extraction."""
                     },
                     {"role": "user", "content": prompt}
                 ],
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                temperature=0.2  # Lower temperature for more precise analysis
             )
             
-            validation_result = json.loads(response.choices[0].message.content)
-            
-            # Log validation issues
-            is_complete = validation_result.get("complete", True)
-            issues = validation_result.get("issues", [])
-            
-            if not is_complete:
-                current_app.logger.warning("Question extraction may be incomplete")
-                for issue in issues:
-                    current_app.logger.warning(f"Validation issue: {issue}")
-            else:
-                current_app.logger.info("Question extraction validation passed")
+            try:
+                validation_result = json.loads(response.choices[0].message.content)
                 
-            return validation_result
+                # Log validation issues
+                is_complete = validation_result.get('complete', True)
+                issues = validation_result.get('issues', [])
+                missed_questions = validation_result.get('missed_questions', [])
                 
+                if not is_complete:
+                    current_app.logger.warning("Question extraction may be incomplete")
+                    for issue in issues:
+                        current_app.logger.warning(f"Validation issue: {issue}")
+                    
+                    # Log missed questions with more prominent warning
+                    if missed_questions:
+                        current_app.logger.warning(f"ATTENTION: Validation detected {len(missed_questions)} potentially missed questions")
+                        for i, missed in enumerate(missed_questions):
+                            current_app.logger.warning(f"Missed question {i+1}: {missed}")
+                else:
+                    current_app.logger.info("Question extraction validation passed")
+                    
+                # If we have missed questions, we might want to try to extract them in future improvements
+                # This could be implemented here...
+                    
+                return validation_result
+                    
+            except json.JSONDecodeError as e:
+                current_app.logger.error(f"JSON decode error during validation: {str(e)}")
+                current_app.logger.error(f"Raw response: {response.choices[0].message.content}")
+                return {
+                    "complete": False,
+                    "issues": [f"Validation parsing error: {str(e)}"],
+                    "suggestions": ["Manual review recommended"],
+                    "missed_questions": []
+                }
+        
         except Exception as e:
             current_app.logger.error(f"Error validating questions: {str(e)}")
             # Return a default validation result in case of error
             return {
-                "complete": True,
+                "complete": False,
                 "issues": [f"Validation error: {str(e)}"],
-                "suggestions": [],
+                "suggestions": ["Manual review recommended due to validation error"],
                 "missed_questions": []
             }
     
@@ -597,8 +650,25 @@ class FormProcessor:
             initial_questions = self.extract_questions(document_text)
             current_app.logger.info(f"Initial parsing found {len(initial_questions)} questions/fields")
             
-            # 3. Validate questions for completeness
-            validation_result = self.validate_questions(initial_questions)
+            # 3. Validate questions for completeness with original document text for better verification
+            validation_result = self.validate_questions(initial_questions, document_text)
+            
+            # 3.5 Check if validation found missing questions and incorporate them
+            missed_questions = validation_result.get('missed_questions', [])
+            if missed_questions and len(missed_questions) > 0:
+                current_app.logger.info(f"Incorporating {len(missed_questions)} questions detected during validation")
+                
+                # Add the missed questions to our initial set
+                for i, missed_question in enumerate(missed_questions):
+                    # Create a basic question structure for each missed question
+                    initial_questions.append({
+                        "id": f"missed_{i+1}",
+                        "question": missed_question,
+                        "type": "text",  # Default to text type
+                        "required": False  # Default to not required
+                    })
+                
+                current_app.logger.info(f"Updated question count after incorporating missed questions: {len(initial_questions)}")
             
             # 4. Process the questions to ensure all have correct structure
             current_app.logger.info("Processing questions while preserving EXACT text and order...")
