@@ -30,9 +30,11 @@ class Form(db.Model):
     file_path = db.Column(db.String(255))
     structure = db.Column(db.Text)  # JSON structure of form questions
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     
     # Relationships
     responses = db.relationship('FormResponse', backref='form', lazy=True)
+    uploader = db.relationship('User', backref='uploaded_forms', lazy=True)
     
     def __repr__(self):
         return f'<Form {self.title}>'
@@ -58,9 +60,11 @@ class Document(db.Model):
     file_path = db.Column(db.String(255))
     content = db.Column(db.Text)  # Raw text content
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     
     # Relationships
     chunks = db.relationship('DocumentChunk', backref='document', lazy=True, cascade="all, delete-orphan")
+    uploader = db.relationship('User', backref='uploaded_documents', lazy=True)
     
     def __repr__(self):
         return f'<Document {self.title}>'

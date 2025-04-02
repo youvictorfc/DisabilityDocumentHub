@@ -49,6 +49,11 @@
                     <p class="card-text text-muted small">
                         Added: {{ document.created_at.strftime('%Y-%m-%d') }}
                     </p>
+                    {% if current_user.is_admin and document.uploader %}
+                    <p class="card-text text-muted small">
+                        <i class="bi bi-person-circle"></i> Uploaded by: {{ document.uploader.username }}
+                    </p>
+                    {% endif %}
                 </div>
                 <div class="card-footer bg-transparent border-0 d-flex justify-content-between">
                     <button type="button" class="btn btn-outline-secondary btn-sm" 

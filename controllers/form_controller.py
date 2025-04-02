@@ -170,7 +170,8 @@ def upload_form():
                 description=description,
                 file_path=file_path,
                 structure=json.dumps(form_structure),
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
+                user_id=current_user.id  # Track which admin uploaded the form
             )
             
             db.session.add(new_form)

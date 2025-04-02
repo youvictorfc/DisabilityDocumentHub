@@ -77,6 +77,11 @@
                 <div class="card-body">
                     <h5 class="card-title">{{ form.title }}</h5>
                     <p class="card-text">{{ form.description }}</p>
+                    {% if current_user.is_admin and form.uploader %}
+                    <p class="card-text text-muted small">
+                        <i class="bi bi-person-circle"></i> Uploaded by: {{ form.uploader.username }}
+                    </p>
+                    {% endif %}
                 </div>
                 <div class="card-footer bg-transparent border-0 d-flex justify-content-between">
                     <a href="{{ url_for('form.fill_form', form_id=form.id) }}" class="btn btn-primary btn-sm">

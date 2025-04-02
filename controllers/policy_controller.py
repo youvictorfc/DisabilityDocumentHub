@@ -52,12 +52,13 @@ def upload_policy():
             # Extract text from document
             document_text = extract_text_from_file(file_path)
             
-            # Create document record
+            # Create document record with uploader information
             new_document = Document(
                 title=title,
                 document_type=document_type,
                 file_path=file_path,
-                content=document_text
+                content=document_text,
+                user_id=current_user.id  # Track which admin uploaded the document
             )
             
             db.session.add(new_document)
