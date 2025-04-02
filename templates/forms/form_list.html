@@ -58,6 +58,7 @@
                     {% if current_user.is_admin %}
                     <button type="button" class="btn btn-danger btn-sm delete-form-btn" 
                             data-form-id="{{ form.form_id }}"
+                            data-response-id="{{ form.response_id }}"
                             data-form-title="{{ form.form_title }}"
                             data-form-type="in-progress">
                         <i class="bi bi-trash me-1"></i>Delete
@@ -216,9 +217,15 @@
                     inProgressInfo.style.display = 'none';
                 }
                 
-                // Set the form action
+                // Set the form action based on form type
                 const deleteForm = document.getElementById('deleteFormForm');
-                deleteForm.setAttribute('action', '/forms/' + formId + '/delete');
+                
+                if (formType === 'in-progress') {
+                    const responseId = this.getAttribute('data-response-id');
+                    deleteForm.setAttribute('action', '/forms/response/' + responseId + '/delete');
+                } else {
+                    deleteForm.setAttribute('action', '/forms/' + formId + '/delete');
+                }
                 
                 // Store the form type (template or in-progress) as a data attribute
                 deleteForm.setAttribute('data-form-type', formType);
@@ -234,14 +241,25 @@
             
             // Get the form action URL
             const url = this.getAttribute('action');
-            // Extract ID from URL by using regex to find the number
-            const matches = url.match(/\/forms\/(\d+)\/delete/);
-            const formId = matches ? matches[1] : null;
             
-            console.log('Deleting form with ID:', formId, 'URL:', url);
+            // Determine if this is an in-progress form response delete or a form template delete
+            const formType = this.getAttribute('data-form-type');
+            let idToRemove;
             
-            if (!formId) {
-                console.error('Could not extract form ID from URL:', url);
+            if (url.includes('/response/')) {
+                // For in-progress form responses
+                const matches = url.match(/\/forms\/response\/(\d+)\/delete/);
+                idToRemove = matches ? matches[1] : null;
+                console.log('Deleting form response with ID:', idToRemove, 'URL:', url);
+            } else {
+                // For form templates
+                const matches = url.match(/\/forms\/(\d+)\/delete/);
+                idToRemove = matches ? matches[1] : null;
+                console.log('Deleting form template with ID:', idToRemove, 'URL:', url);
+            }
+            
+            if (!idToRemove) {
+                console.error('Could not extract ID from URL:', url);
                 alert('Error: Could not determine which form to delete');
                 return;
             }
@@ -266,17 +284,20 @@
                 
                 if (data.success) {
                     console.log('Form deleted successfully');
-                    // Find and remove the card, first check regular forms
-                    let cardElement = document.querySelector(`.card[data-form-id="${formId}"]`);
-                    if (cardElement) {
-                        cardElement.closest('.col').remove();
-                    } else {
-                        // If not found, try in-progress forms
+                    // Handle DOM removal based on what was deleted
+                    if (url.includes('/response/')) {
+                        // For in-progress form responses, find by response-id
                         document.querySelectorAll('.in-progress-form-card .card').forEach(card => {
-                            if (card.dataset.formId === formId) {
+                            if (card.dataset.responseId === idToRemove) {
                                 card.closest('.col').remove();
                             }
                         });
+                    } else {
+                        // For form templates, find by form-id
+                        let cardElement = document.querySelector(`.card[data-form-id="${idToRemove}"]`);
+                        if (cardElement) {
+                            cardElement.closest('.col').remove();
+                        }
                     }
                 } else {
                     console.error('Failed to delete form:', data.message);

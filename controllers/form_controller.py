@@ -566,3 +566,48 @@ def delete_form(form_id):
         else:
             flash(f'Error deleting form: {str(e)}', 'danger')
             return redirect(url_for('form.form_list'))
+
+@form_bp.route('/response/<int:response_id>/delete', methods=['POST'])
+@login_required
+def delete_form_response(response_id):
+    """Delete an in-progress form response"""
+    form_response = FormResponse.query.get_or_404(response_id)
+    
+    # Ensure the user owns this response or is an admin
+    if form_response.user_id != current_user.id and not current_user.is_admin:
+        flash('You do not have permission to delete this form response', 'danger')
+        return redirect(url_for('form.form_list'))
+    
+    try:
+        form_title = form_response.form.title  # Store related form title for messaging
+        
+        # If there's a generated PDF, delete it
+        if form_response.pdf_path and os.path.exists(form_response.pdf_path):
+            os.remove(form_response.pdf_path)
+            current_app.logger.info(f"Deleted form response PDF: {form_response.pdf_path}")
+        
+        # Actually delete the response
+        db.session.delete(form_response)
+        db.session.commit()
+        
+        # Return JSON if AJAX request, otherwise redirect
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'success': True,
+                'message': f'Form response for "{form_title}" deleted successfully.'
+            })
+        else:
+            flash(f'Form response for "{form_title}" deleted successfully.', 'success')
+            return redirect(url_for('form.form_list'))
+    
+    except Exception as e:
+        current_app.logger.error(f"Error deleting form response: {str(e)}")
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'success': False,
+                'message': f'Error: {str(e)}'
+            }), 500
+        else:
+            flash(f'Error deleting form response: {str(e)}', 'danger')
+            return redirect(url_for('form.form_list'))
