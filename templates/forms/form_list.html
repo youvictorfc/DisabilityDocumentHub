@@ -36,7 +36,7 @@
     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
         {% for form in in_progress_forms %}
         <div class="col in-progress-form-card">
-            <div class="card h-100" data-form-id="{{ form.form_id }}">
+            <div class="card h-100" data-form-id="{{ form.form_id }}" data-response-id="{{ form.response_id }}">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <h5 class="card-title">
@@ -130,8 +130,14 @@
             </div>
             <div class="modal-body">
                 <p>Are you sure you want to delete the form <strong id="formTitleToDelete"></strong>?</p>
-                <p>The form template will be marked as deleted, but all completed responses will still be accessible.</p>
-                <p class="text-danger"><i class="bi bi-info-circle me-1"></i> The form file will be permanently removed from the server.</p>
+                <div id="template-delete-info">
+                    <p>The form template will be marked as deleted, but all completed responses will still be accessible.</p>
+                    <p class="text-danger"><i class="bi bi-info-circle me-1"></i> The form file will be permanently removed from the server.</p>
+                </div>
+                <div id="in-progress-delete-info" style="display: none;">
+                    <p>This will permanently delete your in-progress form response.</p>
+                    <p class="text-danger"><i class="bi bi-info-circle me-1"></i> All data entered so far will be lost.</p>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -193,13 +199,29 @@
                 // Get form details
                 const formId = this.getAttribute('data-form-id');
                 const formTitle = this.getAttribute('data-form-title');
+                const formType = this.getAttribute('data-form-type');
                 
                 // Update the modal content
                 document.getElementById('formTitleToDelete').textContent = formTitle;
                 
+                // Show the appropriate delete information based on form type
+                const templateInfo = document.getElementById('template-delete-info');
+                const inProgressInfo = document.getElementById('in-progress-delete-info');
+                
+                if (formType === 'in-progress') {
+                    templateInfo.style.display = 'none';
+                    inProgressInfo.style.display = 'block';
+                } else {
+                    templateInfo.style.display = 'block';
+                    inProgressInfo.style.display = 'none';
+                }
+                
                 // Set the form action
                 const deleteForm = document.getElementById('deleteFormForm');
                 deleteForm.setAttribute('action', '/forms/' + formId + '/delete');
+                
+                // Store the form type (template or in-progress) as a data attribute
+                deleteForm.setAttribute('data-form-type', formType);
                 
                 // Show the modal
                 deleteModal.show();
@@ -212,11 +234,17 @@
             
             // Get the form action URL
             const url = this.getAttribute('action');
-            // Extract ID from URL properly - get the last segment which is numeric
-            const urlParts = url.split('/');
-            const formId = urlParts[urlParts.length - 2]; // The ID is the second-to-last part in /forms/ID/delete
+            // Extract ID from URL by using regex to find the number
+            const matches = url.match(/\/forms\/(\d+)\/delete/);
+            const formId = matches ? matches[1] : null;
             
             console.log('Deleting form with ID:', formId, 'URL:', url);
+            
+            if (!formId) {
+                console.error('Could not extract form ID from URL:', url);
+                alert('Error: Could not determine which form to delete');
+                return;
+            }
             
             // Send a POST request
             fetch(url, {
