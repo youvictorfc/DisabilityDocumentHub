@@ -1033,6 +1033,41 @@ def edit_form(form_id):
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a vehicle safety check: {str(e)}")
                 
+                # Check for Waste Risk Assessment Checklist
+                elif "waste" in filename.lower() or "risk assessment" in filename.lower() or "waste risk" in filename.lower():
+                    current_app.logger.info("Detected a Waste Risk Assessment Checklist upload, using specialized template")
+                    # Import directly here to avoid circular imports
+                    from services.form.waste_risk_assessment_template import get_waste_risk_assessment_template, is_waste_risk_assessment
+                    
+                    # For docx files, we immediately use the template
+                    if filename.lower().endswith(".docx"):
+                        current_app.logger.info("Using waste risk assessment template for .docx file")
+                        form_structure = {
+                            "questions": get_waste_risk_assessment_template()
+                        }
+                        questions_count = len(form_structure.get('questions', []))
+                        current_app.logger.info(f"Using waste risk assessment template with {questions_count} fields")
+                        use_openai_extraction = False
+                    # For other file types, we try to extract content and check if it looks like a waste risk assessment
+                    else:
+                        try:
+                            # Try to extract text content if applicable
+                            from services.document.document_service import extract_text_from_file
+                            content = extract_text_from_file(file_path)
+                            if content and is_waste_risk_assessment(content):
+                                current_app.logger.info("Detected waste risk assessment content, using specialized template")
+                                form_structure = {
+                                    "questions": get_waste_risk_assessment_template()
+                                }
+                                questions_count = len(form_structure.get('questions', []))
+                                current_app.logger.info(f"Using waste risk assessment template with {questions_count} fields")
+                                use_openai_extraction = False
+                            else:
+                                # Not a waste risk assessment or couldn't extract content, proceed to normal extraction
+                                current_app.logger.info("Content doesn't appear to be a waste risk assessment, proceeding with normal extraction")
+                        except Exception as e:
+                            current_app.logger.info(f"Error checking if file is a waste risk assessment: {str(e)}")
+                
                 # Use OpenAI extraction if we haven't already used a template
                 if use_openai_extraction:
                     # Extract form structure using OpenAI - preserve EXACT questions and order
