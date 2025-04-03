@@ -44,20 +44,38 @@ def verify_field_extraction_completeness(image_path, base64_image, extracted_fie
     """
     Verify that all potential form fields in the image have been extracted.
     Returns potential missed fields and a completeness assessment.
+    
+    This function performs a thorough verification pass using a different approach
+    to catch any fields that might have been missed in the initial extraction.
     """
     client = get_openai_client()
+    
+    # Define verification result schema for consistent output
+    verification_schema = {
+        "type": "object",
+        "properties": {
+            "complete": {"type": "boolean"},
+            "issues": {"type": "array", "items": {"type": "string"}},
+            "suggestions": {"type": "array", "items": {"type": "string"}},
+            "missed_questions": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["complete", "issues", "missed_questions"]
+    }
     
     try:
         # Format the extracted fields for the verification prompt
         field_list = []
         for i, field in enumerate(extracted_fields):
             field_text = field.get('question_text', field.get('label', ''))
+            field_type = field.get('field_type', 'unknown')
             if field_text:
-                field_list.append(f"{i+1}. {field_text}")
+                field_list.append(f"{i+1}. [{field_type}] {field_text}")
         
         field_summary = "\n".join(field_list) if field_list else "No fields were extracted."
         
-        # Make verification API call
+        current_app.logger.info(f"Verifying extraction completeness with {len(extracted_fields)} fields")
+        
+        # Make verification API call with enhanced prompt
         verification_response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -69,12 +87,22 @@ def verify_field_extraction_completeness(image_path, base64_image, extracted_fie
                         "You will be given a list of already extracted fields and the original form image. "
                         "Your job is to identify any fields that might have been missed or incompletely extracted.\n\n"
                         
+                        "CRITICAL VERIFICATION REQUIREMENTS:\n"
+                        "1. DO NOT ADD TEXT THAT IS NOT DIRECTLY PRESENT IN THE IMAGE\n"
+                        "2. Be extremely thorough in your verification\n"
+                        "3. Compare what's in the image against what has been extracted\n"
+                        "4. Look for ANY missed questions, fields, checkboxes, or input areas\n"
+                        "5. Note if any extracted fields are inaccurate or have been modified from the original\n\n"
+                        
                         "SPECIAL ATTENTION AREAS:\n"
                         "1. Checklist forms - Each row in a checklist should be a separate field\n"
                         "2. Tables with YES/NO columns - Each row should be captured as a radio button question\n"
                         "3. Audit forms - Every audit item should be captured separately\n"
                         "4. Multi-section forms - Section headers should be included with items\n"
-                        "5. Forms with multiple columns - Ensure all columns are properly captured"
+                        "5. Forms with multiple columns - Ensure all columns are properly captured\n"
+                        "6. Small text in corners or margins - These are often missed\n"
+                        "7. Signature fields, date fields, and reference numbers - These should be captured\n"
+                        "8. Instructions or guidance text - If these are substantial, they should be included"
                     )
                 },
                 {
@@ -85,23 +113,29 @@ def verify_field_extraction_completeness(image_path, base64_image, extracted_fie
                             "text": (
                                 f"I've extracted {len(extracted_fields)} fields from this form image.\n\n"
                                 f"EXTRACTED FIELDS:\n{field_summary}\n\n"
-                                "Please carefully examine the image and identify any form fields, questions, checkboxes, "
-                                "or input areas that might have been missed in the extraction. Pay special attention to:\n"
-                                "1. Headers or section titles that might be important context\n"
-                                "2. Small or faint text fields\n"
-                                "3. Instructions or guidance text\n"
+                                "Please carefully compare the image with these extracted fields and identify ANYTHING that was missed or extracted incorrectly. Pay special attention to:\n"
+                                "1. Headers or section titles that provide important context\n"
+                                "2. Small or faint text fields that might be hard to see\n"
+                                "3. Instructions or guidance text that should be captured\n"
                                 "4. Fields in unusual locations (footers, margins, etc.)\n"
                                 "5. Tables or grid structures - EACH ROW should typically be extracted as a separate field\n"
                                 "6. Checklist forms with YES/NO columns - each row should be a separate question with options\n"
                                 "7. Audit forms - each audit item should be extracted separately\n"
-                                "8. Forms with sections and subsections - section headers should be included\n\n"
+                                "8. Forms with sections and subsections - section headers should be included\n"
+                                "9. Required field indicators - asterisks or other symbols noting mandatory fields\n"
+                                "10. Date fields, signature fields, or reference number fields\n\n"
+                                
+                                "Record ANY text that appears on the form but is not in the extracted fields list.\n\n"
+                                
                                 "Please respond with your assessment as a JSON object with:\n"
                                 "{\n"
                                 "    \"complete\": true|false (whether the extraction seems complete),\n"
-                                "    \"issues\": [\"issue 1\", \"issue 2\", ...],\n"
-                                "    \"suggestions\": [\"suggestion 1\", \"suggestion 2\", ...],\n"
-                                "    \"missed_questions\": [\"missed question 1\", \"missed question 2\", ...]\n"
-                                "}"
+                                "    \"issues\": [\"issue 1\", \"issue 2\", ...] (problems with the extraction),\n"
+                                "    \"suggestions\": [\"suggestion 1\", \"suggestion 2\", ...] (recommendations to improve),\n"
+                                "    \"missed_questions\": [\"missed question 1\", \"missed question 2\", ...] (exact text of fields that were missed)\n"
+                                "}\n\n"
+                                
+                                "IMPORTANT: For missed_questions, include the EXACT text as it appears in the form, not paraphrased or summarized versions."
                             )
                         },
                         {
@@ -114,7 +148,7 @@ def verify_field_extraction_completeness(image_path, base64_image, extracted_fie
                 }
             ],
             response_format={"type": "json_object"},
-            temperature=0.3
+            temperature=0.2  # Lower temperature for more precise verification
         )
         
         verification_result = json.loads(verification_response.choices[0].message.content)
@@ -147,6 +181,34 @@ def extract_form_fields_from_image(image_path):
     """Extract form fields from an image using GPT-4o multimodal capabilities with enhanced handling for challenging images"""
     client = get_openai_client()
     
+    # Define our JSON schema for form extraction to ensure consistent output
+    json_schema = {
+        "type": "object",
+        "properties": {
+            "questions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string" },
+                        "question_text": { "type": "string" },
+                        "field_type": { 
+                            "type": "string", 
+                            "enum": ["text", "textarea", "radio", "checkbox", "select", "date", "email", "number", "signature"] 
+                        },
+                        "options": { 
+                            "type": "array", 
+                            "items": { "type": "string" } 
+                        },
+                        "required": { "type": "boolean" }
+                    },
+                    "required": ["id", "question_text", "field_type"]
+                }
+            }
+        },
+        "required": ["questions"]
+    }
+    
     try:
         base64_image = encode_image_to_base64(image_path)
         current_app.logger.info(f"Attempting form extraction from image: {image_path}")
@@ -155,7 +217,7 @@ def extract_form_fields_from_image(image_path):
         try:
             # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
             # do not change this unless explicitly requested by the user
-            current_app.logger.info(f"Attempting form extraction with GPT-4o model")
+            current_app.logger.info(f"Attempting form extraction with GPT-4o model using enhanced JSON schema")
             response = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
@@ -165,18 +227,42 @@ def extract_form_fields_from_image(image_path):
                             "You are a specialized form extraction expert for Minto Disability Services with exceptional attention to detail. "
                             "Your task is to analyze the provided image of a form and extract ALL form fields/questions EXACTLY as they appear in the original. "
                             "CRITICAL REQUIREMENTS:\n"
-                            "1. Extract EVERY form element with the EXACT original text - NO paraphrasing, NO combining, NO improving clarity\n"
-                            "2. If the image quality is poor, do your absolute best to decipher the text while maintaining exact wording\n"
-                            "3. If the image is rotated or skewed, mentally adjust your perspective to read it correctly\n"
-                            "4. For complex forms with multiple sections or tables, process sequentially (usually top-to-bottom, left-to-right)\n"
-                            "5. Never add explanatory text to fields that isn't present in the original\n"
-                            "6. If you're uncertain about field content, include what you can see and note uncertainty with [?] in field labels\n\n"
-                            "7. For tabular forms with YES/NO columns or checklists, extract EACH ROW as a separate question\n"
-                            "8. Pay special attention to tables - extract EVERY ROW as a separate question\n"
-                            "9. For forms with sections and subsections, include section titles as part of the question text\n"
-                            "10. For audit forms or checklists with YES/NO options, use radio button field types\n\n"
+                            "1. EXTRACT EVERY SINGLE FORM ELEMENT WITH THE EXACT ORIGINAL TEXT - DO NOT PARAPHRASE, DO NOT COMBINE FIELDS, DO NOT IMPROVE CLARITY\n"
+                            "2. DO NOT ADD ANY TEXT THAT IS NOT DIRECTLY PRESENT IN THE IMAGE\n"
+                            "3. DO NOT SKIP ANY FIELDS, EVEN IF THEY SEEM MINOR OR REDUNDANT\n"
+                            "4. If the image quality is poor, do your absolute best to decipher the text while maintaining exact wording\n"
+                            "5. If the image is rotated or skewed, mentally adjust your perspective to read it correctly\n"
+                            "6. For complex forms with multiple sections or tables, process sequentially (usually top-to-bottom, left-to-right)\n"
+                            "7. Never add explanatory text to fields that isn't present in the original\n"
+                            "8. If you're uncertain about field content, include what you can see and note uncertainty with [?] in field labels\n\n"
+                            "9. For tabular forms with YES/NO columns or checklists, extract EACH ROW as a separate question\n"
+                            "10. Pay special attention to tables - extract EVERY ROW as a separate question\n"
+                            "11. For forms with sections and subsections, include section titles as part of the question text\n"
+                            "12. For audit forms or checklists with YES/NO options, use radio button field types\n\n"
                             
-                            "You must return your output as a structured JSON in the following format (EXACTLY):\n"
+                            "Your output MUST strictly adhere to this JSON schema:\n"
+                            "{\n"
+                            "  \"type\": \"object\",\n"
+                            "  \"properties\": {\n"
+                            "    \"questions\": {\n"
+                            "      \"type\": \"array\",\n"
+                            "      \"items\": {\n"
+                            "        \"type\": \"object\",\n"
+                            "        \"properties\": {\n"
+                            "          \"id\": { \"type\": \"string\" },\n"
+                            "          \"question_text\": { \"type\": \"string\" },\n"
+                            "          \"field_type\": { \"type\": \"string\", \"enum\": [\"text\", \"textarea\", \"radio\", \"checkbox\", \"select\", \"date\", \"email\", \"number\", \"signature\"] },\n"
+                            "          \"options\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n"
+                            "          \"required\": { \"type\": \"boolean\" }\n"
+                            "        },\n"
+                            "        \"required\": [\"id\", \"question_text\", \"field_type\"]\n"
+                            "      }\n"
+                            "    }\n"
+                            "  },\n"
+                            "  \"required\": [\"questions\"]\n"
+                            "}\n\n"
+                            
+                            "Example extraction format:\n"
                             "{\n"
                             "  \"questions\": [\n"
                             "    {\n"
@@ -197,25 +283,26 @@ def extract_form_fields_from_image(image_path):
                                 "type": "text",
                                 "text": (
                                     "Here's an image of a form. Your task is to extract ALL fields EXACTLY as they appear in the original form, maintaining the original wording, order, and structure. "
-                                    "Don't try to improve, clarify, or reorganize the form - I need the EXACT original form fields as they appear on the form.\n\n"
-                                    "IMPORTANT GUIDELINES:\n"
-                                    "1. Extract ALL form elements - including lines that end with a colon, blank spaces, form fields, checkboxes, etc.\n"
-                                    "2. Treat all blank lines following a label as input fields\n"
-                                    "3. Look for form field indicators like colons, underlines, or checkboxes\n"
-                                    "4. Do not skip ANY fields, even if they seem minor or redundant\n"
-                                    "5. Maintain the EXACT original wording and formatting of all labels\n"
-                                    "6. For fields with options (like radio buttons), extract all options exactly\n"
-                                    "7. For tables, extract EACH ROW as a separate question with options where applicable\n"
-                                    "8. For checklists or forms with YES/NO columns, make each row a separate radio question\n"
-                                    "9. In a multi-section form, include the section headers as part of the question text\n"
-                                    "10. For tables with multiple columns of checkboxes, convert each row to a question with options\n\n"
+                                    "DO NOT TRY TO IMPROVE, CLARIFY, OR REORGANIZE THE FORM - I need the EXACT original form fields as they appear on the form.\n\n"
+                                    "CRITICAL EXTRACTION REQUIREMENTS:\n"
+                                    "1. DO NOT ADD ANY TEXT THAT IS NOT DIRECTLY PRESENT IN THE IMAGE\n"
+                                    "2. Extract ALL form elements - including lines that end with a colon, blank spaces, form fields, checkboxes, etc.\n"
+                                    "3. Treat all blank lines following a label as input fields\n"
+                                    "4. Look for form field indicators like colons, underlines, or checkboxes\n"
+                                    "5. DO NOT SKIP ANY FIELDS, even if they seem minor or redundant\n"
+                                    "6. Maintain the EXACT original wording and formatting of all labels\n"
+                                    "7. For fields with options (like radio buttons), extract all options exactly\n"
+                                    "8. For tables, extract EACH ROW as a separate question with options where applicable\n"
+                                    "9. For checklists or forms with YES/NO columns, make each row a separate radio question\n"
+                                    "10. In a multi-section form, include the section headers as part of the question text\n"
+                                    "11. For tables with multiple columns of checkboxes, convert each row to a question with options\n\n"
                                     "Format your response as structured JSON with a 'questions' array in the SAME ORDER they appear on the form. Include:\n"
                                     "1. A unique 'id' for each field (use field_1, field_2, etc.)\n"
                                     "2. 'question_text': The EXACT text of the field/question as it appears\n"
                                     "3. 'field_type': appropriate type (text, textarea, radio, checkbox, select, date, etc.)\n"
                                     "4. 'options': array of options if applicable (for radio, checkbox, select fields)\n"
                                     "5. 'required': whether the field appears to be required (based on asterisks, etc.)\n\n"
-                                    "Do NOT add, reword, clarify, or merge any fields. Extract EXACTLY what is visible."
+                                    "DO NOT ADD, REWORD, CLARIFY, OR MERGE ANY FIELDS. EXTRACT EXACTLY WHAT IS VISIBLE."
                                 )
                             },
                             {
@@ -228,7 +315,7 @@ def extract_form_fields_from_image(image_path):
                     }
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.2  # Lower temperature for more precise extraction
+                temperature=0.1  # Lower temperature for more precise extraction
             )
             
             result = json.loads(response.choices[0].message.content)
@@ -254,21 +341,30 @@ def extract_form_fields_from_image(image_path):
                     
                     try:
                         current_app.logger.info(f"Performing focused extraction for {len(missed_questions)} potentially missed fields")
+                        current_app.logger.info(f"Performing targeted extraction with enhanced JSON schema")
                         focused_response = client.chat.completions.create(
                             model="gpt-4o",
                             messages=[
                                 {
                                     "role": "system", 
-                                    "content": """You are a form field extraction specialist focusing on filling in missing information. 
-                                    You will be given a list of potentially missed form fields and your task is to extract 
-                                    the exact information for these fields from the image.
+                                    "content": """You are a highly specialized form field extraction expert focusing on filling in missing information. 
+                                    You will be given a list of potentially missed form fields identified by a verification system, and your task is to extract 
+                                    the EXACT information for these fields from the image.
+                                    
+                                    CRITICAL EXTRACTION REQUIREMENTS:
+                                    1. DO NOT ADD ANY TEXT THAT IS NOT DIRECTLY PRESENT IN THE IMAGE
+                                    2. Extract the EXACT text for each field as it appears in the form - NO paraphrasing, NO combining, NO improving clarity
+                                    3. DO NOT modify the wording or structure of the questions in any way
+                                    4. Focus ONLY on the potentially missed fields listed
                                     
                                     SPECIAL FOCUS AREAS:
                                     1. Tables - each row should be extracted as a separate question
                                     2. Checklists - each item should be extracted as a separate field
                                     3. Forms with YES/NO columns - each row should be a question with YES and NO as options
                                     4. Audit-style forms - each audit item should be extracted completely
-                                    5. Section headers - include these as part of question text"""
+                                    5. Section headers - include these as part of question text
+                                    6. Field identifiers like asterisks (*) or other markers for required fields
+                                    7. Small text or notes that provide context to questions"""
                                 },
                                 {
                                     "role": "user",
@@ -276,8 +372,8 @@ def extract_form_fields_from_image(image_path):
                                         {
                                             "type": "text",
                                             "text": f"""
-                                            The initial form extraction missed some important fields. Please focus ONLY on 
-                                            extracting the following potentially missed fields from the image:
+                                            Our verification system has identified that the initial form extraction missed some important fields. 
+                                            Please focus ONLY on extracting the following potentially missed fields from the image:
                                             
                                             POTENTIALLY MISSED FIELDS:
                                             {missed_str}
@@ -285,17 +381,29 @@ def extract_form_fields_from_image(image_path):
                                             EXTRACTION ISSUES IDENTIFIED:
                                             {issues_str}
                                             
-                                            EXTRACTION INSTRUCTIONS:
-                                            1. Focus ONLY on the potentially missed fields listed above
-                                            2. Extract the EXACT text for each field as it appears in the form
-                                            3. Include the appropriate field type and whether it appears to be required
-                                            4. For multiple choice fields, extract all available options
-                                            5. For tables with YES/NO columns, extract each row as a radio button question
-                                            6. For checklists, extract each item as a separate field
-                                            7. For audit forms, make sure to include section headers and extract every item
+                                            CRITICAL EXTRACTION INSTRUCTIONS:
+                                            1. DO NOT ADD ANY TEXT THAT IS NOT DIRECTLY PRESENT IN THE IMAGE
+                                            2. Focus ONLY on the potentially missed fields listed above
+                                            3. Extract the EXACT text for each field as it appears in the form
+                                            4. DO NOT modify, paraphrase, clarify, or improve the text in any way
+                                            5. Include the appropriate field type and whether it appears to be required
+                                            6. For multiple choice fields, extract all available options EXACTLY as written
+                                            7. For tables with YES/NO columns, extract each row as a radio button question
+                                            8. For checklists, extract each item as a separate field
+                                            9. For audit forms, make sure to include section headers and extract every item
                                             
-                                            Format your response as a JSON object with a 'questions' array containing 
-                                            the missing fields with the exact same structure as the standard extraction.
+                                            Your output MUST follow the same structure as the standard extraction:
+                                            {{
+                                              "questions": [
+                                                {{
+                                                  "id": "unique_id",
+                                                  "question_text": "The EXACT text of the question as it appears on the form",
+                                                  "field_type": "text|textarea|radio|checkbox|select|date|email|number|signature",
+                                                  "options": ["Option 1", "Option 2"],
+                                                  "required": true|false
+                                                }}
+                                              ]
+                                            }}
                                             """
                                         },
                                         {
@@ -308,7 +416,7 @@ def extract_form_fields_from_image(image_path):
                                 }
                             ],
                             response_format={"type": "json_object"},
-                            temperature=0.2
+                            temperature=0.1  # Lower temperature for more precise extraction
                         )
                         
                         # Extract and combine the results
@@ -347,23 +455,52 @@ def extract_form_fields_from_image(image_path):
         
         # Fallback to GPT-4-turbo if GPT-4o failed or extracted too few fields
         try:
-            current_app.logger.info(f"Attempting form extraction with fallback model")
+            current_app.logger.info(f"Attempting form extraction with fallback model using enhanced JSON schema")
             response = client.chat.completions.create(
                 model="gpt-4-turbo-preview",  # Use an alternative model
                 messages=[
                     {
                         "role": "system",
                         "content": (
-                            "You are a form extraction expert for Minto Disability Services. Your task is to analyze the provided document "
-                            "(image or text) of a form and extract ALL form fields/questions EXACTLY as they appear in the original. "
-                            "IMPORTANT GUIDELINES:\n"
-                            "1. Do NOT rephrase, modify, or add any questions. Preserve the original text and formatting exactly\n"
-                            "2. Extract the precise label text for every field. Do not summarize or generalize fields\n"
-                            "3. Be extremely literal in your extraction\n"
-                            "4. For tables with YES/NO columns, extract EACH ROW as a separate question with YES and NO as options\n"
-                            "5. For forms with sections or categories, include the section name as part of the question text\n"
-                            "6. Pay special attention to audit checklists, which should be extracted as individual questions\n"
-                            "7. Extract EVERY table row as a separate field, and include column headers if relevant"
+                            "You are a specialized form extraction expert for Minto Disability Services with exceptional attention to detail. "
+                            "Your task is to analyze the provided image of a form and extract ALL form fields/questions EXACTLY as they appear in the original. "
+                            "This is a fallback extraction attempt, so you must be extremely thorough and detailed.\n\n"
+                            
+                            "CRITICAL REQUIREMENTS:\n"
+                            "1. EXTRACT EVERY SINGLE FORM ELEMENT WITH THE EXACT ORIGINAL TEXT - DO NOT PARAPHRASE, DO NOT COMBINE FIELDS, DO NOT IMPROVE CLARITY\n"
+                            "2. DO NOT ADD ANY TEXT THAT IS NOT DIRECTLY PRESENT IN THE IMAGE\n"
+                            "3. DO NOT SKIP ANY FIELDS, EVEN IF THEY SEEM MINOR OR REDUNDANT\n"
+                            "4. If the image quality is poor, do your absolute best to decipher the text while maintaining exact wording\n"
+                            "5. If the image is rotated or skewed, mentally adjust your perspective to read it correctly\n"
+                            "6. For complex forms with multiple sections or tables, process sequentially (usually top-to-bottom, left-to-right)\n"
+                            "7. Never add explanatory text to fields that isn't present in the original\n"
+                            "8. If you're uncertain about field content, include what you can see and note uncertainty with [?] in field labels\n\n"
+                            "9. For tabular forms with YES/NO columns or checklists, extract EACH ROW as a separate question\n"
+                            "10. Pay special attention to tables - extract EVERY ROW as a separate question\n"
+                            "11. For forms with sections and subsections, include section titles as part of the question text\n"
+                            "12. For audit forms or checklists with YES/NO options, use radio button field types\n\n"
+                            
+                            "Your output MUST strictly adhere to this JSON schema:\n"
+                            "{\n"
+                            "  \"type\": \"object\",\n"
+                            "  \"properties\": {\n"
+                            "    \"questions\": {\n"
+                            "      \"type\": \"array\",\n"
+                            "      \"items\": {\n"
+                            "        \"type\": \"object\",\n"
+                            "        \"properties\": {\n"
+                            "          \"id\": { \"type\": \"string\" },\n"
+                            "          \"question_text\": { \"type\": \"string\" },\n"
+                            "          \"field_type\": { \"type\": \"string\", \"enum\": [\"text\", \"textarea\", \"radio\", \"checkbox\", \"select\", \"date\", \"email\", \"number\", \"signature\"] },\n"
+                            "          \"options\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n"
+                            "          \"required\": { \"type\": \"boolean\" }\n"
+                            "        },\n"
+                            "        \"required\": [\"id\", \"question_text\", \"field_type\"]\n"
+                            "      }\n"
+                            "    }\n"
+                            "  },\n"
+                            "  \"required\": [\"questions\"]\n"
+                            "}\n\n"
                         )
                     },
                     {
@@ -372,14 +509,16 @@ def extract_form_fields_from_image(image_path):
                             {
                                 "type": "text",
                                 "text": (
-                                    "This is a different approach to extract ALL form fields, so please analyze this image carefully:\n\n"
+                                    "This is our fallback approach to extract ALL form fields, so please analyze this image with extreme thoroughness:\n\n"
                                     
-                                    "RECOGNITION INSTRUCTIONS:\n"
-                                    "1. Analyze the ENTIRE image thoroughly - check headers, footers, margins, and all sections\n"
-                                    "2. Be alert for fields in unusual locations (margins, headers, footers, etc.)\n"
-                                    "3. For rotated images, visually rotate and extract fields in their logical order\n"
-                                    "4. In poor quality images, make your best effort to decipher text while maintaining exact wording\n"
-                                    "5. Check for watermarks or background elements that might contain form information\n\n"
+                                    "CRITICAL EXTRACTION REQUIREMENTS:\n"
+                                    "1. DO NOT ADD ANY TEXT THAT IS NOT DIRECTLY PRESENT IN THE IMAGE\n"
+                                    "2. EXTRACT EVERY SINGLE FORM ELEMENT WITH THE EXACT ORIGINAL TEXT\n"
+                                    "3. Analyze the ENTIRE image thoroughly - check headers, footers, margins, and all sections\n"
+                                    "4. Be alert for fields in unusual locations (margins, headers, footers, etc.)\n"
+                                    "5. For rotated images, visually rotate and extract fields in their logical order\n"
+                                    "6. In poor quality images, make your best effort to decipher text while maintaining exact wording\n"
+                                    "7. Check for watermarks or background elements that might contain form information\n\n"
                                     
                                     "FIELD IDENTIFICATION GUIDELINES:\n"
                                     "1. Extract ALL form elements - including labels with colons, blank lines/spaces, checkboxes, etc.\n"
@@ -388,17 +527,20 @@ def extract_form_fields_from_image(image_path):
                                     "4. For tables, extract each row/cell as separate fields based on headers and context\n"
                                     "5. Extract multi-line text areas as single textarea fields\n"
                                     "6. Maintain the EXACT original wording of all field labels\n"
-                                    "7. For fields with options (radio buttons, checkboxes), extract all options with exact wording\n\n"
+                                    "7. For fields with options (radio buttons, checkboxes), extract all options with exact wording\n"
+                                    "8. For tables with YES/NO columns, extract EACH ROW as a separate question with YES and NO as options\n"
+                                    "9. For audit forms, each audit item should be extracted as an individual question\n"
+                                    "10. For forms with sections and subsections, include section headers as part of the question text\n\n"
                                     
                                     "FORMAT YOUR RESPONSE as JSON with a 'questions' array following these requirements:\n"
                                     "1. Preserve the SAME ORDER as they appear on the form (top-to-bottom, left-to-right)\n"
-                                    "2. Generate a sensible unique 'id' for each field (e.g., 'name', 'address_line1', etc.)\n" 
+                                    "2. Generate a unique 'id' for each field (use field_1, field_2, etc.)\n" 
                                     "3. Include 'question_text' with the EXACT text of the label as it appears\n"
                                     "4. Set appropriate 'field_type' (text, textarea, radio, checkbox, select, date, etc.)\n"
                                     "5. Include 'options' array when applicable\n"
                                     "6. Set 'required' based on any indicators in the form (asterisks, 'required' text, etc.)\n\n"
                                     
-                                    "EXTRACT EVERYTHING: This is my fallback extraction attempt, so be extremely thorough and detailed."
+                                    "DO NOT ADD, REWORD, CLARIFY, OR MERGE ANY FIELDS. EXTRACT EXACTLY WHAT IS VISIBLE."
                                 )
                             },
                             {
@@ -411,7 +553,7 @@ def extract_form_fields_from_image(image_path):
                     }
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.2  # Lower temperature for more precise extraction
+                temperature=0.1  # Lower temperature for more precise extraction
             )
             
             result = json.loads(response.choices[0].message.content)

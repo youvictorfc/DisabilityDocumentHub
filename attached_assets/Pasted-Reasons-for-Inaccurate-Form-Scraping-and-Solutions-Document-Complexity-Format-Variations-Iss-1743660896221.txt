@@ -1,0 +1,35 @@
+Reasons for Inaccurate Form Scraping (and Solutions):
+
+Document Complexity & Format Variations:
+
+Issue: PDF, DOCX, and image files can have vastly different structures, layouts, and formatting styles. This makes it challenging for a single parsing approach to handle all cases flawlessly. Think of tables, multi-column layouts, nested lists, scanned images, etc.
+
+Solution: You've already started implementing some excellent targeted fixes.
+
+Specialized Templates: The addition of specific templates (e.g., incident_form_template.py, advocate_form_template.py, etc.) is a great approach. This allows you to handle known form formats with 100% accuracy by bypassing AI-based extraction entirely. The key here is to identify the specific form with high confidence (e.g., using filename keywords, content analysis) and apply the correct template.
+
+OCR Limitations (Images):
+
+Issue: OCR (Optical Character Recognition) is inherently imperfect. Image quality, font styles, skewed images, and handwriting can all introduce errors.
+
+Solutions:
+
+Multi-Pass OCR with GPT-4o: By providing two opportunities for the OCR to be correct it provides a greater degree of accuracy that would other wise be hard to solve
+
+Pre-processing: Apply image pre-processing techniques to improve OCR accuracy:
+
+Rotation/Deskewing: Correct rotated or skewed images.
+
+Noise Removal: Reduce noise and artifacts in scanned images.
+
+Contrast Enhancement: Improve contrast for better character detection.
+
+Quality Control: If image quality is consistently poor, establish clear guidelines for users uploading forms.
+
+AI Model Limitations:
+
+Issue: Even the most advanced AI models (like GPT-4) have limitations in understanding complex layouts and accurately identifying form fields in all cases. They can misinterpret context, miss fields, or hallucinate information.
+
+Solution: The codebase already attempts to minimize the reliance on this but we may want to improve the extraction by using a JSON Schema
+
+Enforce Output Structure: While you use response_format={"type": "json_object"}, you should explicitly guide the LLM response with a JSON schema. Here's what it may look like

@@ -1,6 +1,17 @@
 import os
 import uuid
 import logging
+# Import jsonschema if available, but don't require it
+try:
+    import jsonschema
+    HAS_JSONSCHEMA = True
+except ImportError:
+    HAS_JSONSCHEMA = False
+
+# Define our own ValidationError class
+class ValidationError(Exception):
+    """Custom validation error class for schema validation"""
+    pass
 from typing import List, Dict, Any
 import PyPDF2
 import json
@@ -12,6 +23,95 @@ from openai import OpenAI
 from services.form.incident_form_template import get_incident_form_template, is_incident_form
 from services.form.audit_checklist_template import get_access_audit_checklist_template, is_access_audit_checklist
 from services.form.advocate_form_template import get_advocate_form_template, is_advocate_form
+
+# JSON Schema for question validation
+FORM_QUESTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["question"],
+                "properties": {
+                    "question": {"type": "string"},
+                    "type": {
+                        "type": "string", 
+                        "enum": ["text", "textarea", "radio", "checkbox", "select", "date", "email", 
+                                "number", "phone", "time", "datetime", "signature"]
+                    },
+                    "options": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "required": {"type": "boolean"}
+                }
+            }
+        }
+    },
+    "required": ["questions"]
+}
+
+# JSON Schema for validation result
+VALIDATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "complete": {"type": "boolean"},
+        "issues": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "suggestions": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "missed_questions": {
+            "type": "array",
+            "items": {"type": "string"}
+        }
+    },
+    "required": ["complete"]
+}
+
+def validate_json_schema(data, schema):
+    """Validate JSON data against a schema"""
+    # Basic validation that works regardless of jsonschema availability
+    if not isinstance(data, dict):
+        return False, "Data is not a dictionary"
+    
+    # For questions schema, do basic checks
+    if schema == FORM_QUESTION_SCHEMA:
+        if "questions" not in data:
+            return False, "Missing 'questions' key in data"
+        if not isinstance(data["questions"], list):
+            return False, "Questions must be a list"
+        
+        # Check each question has required fields
+        for q in data["questions"]:
+            if not isinstance(q, dict):
+                return False, "Question entry must be a dictionary"
+            if "question" not in q:
+                return False, "Missing 'question' field in question entry"
+        
+        return True, None
+        
+    # For validation schema, do basic checks    
+    elif schema == VALIDATION_SCHEMA:
+        if "complete" not in data:
+            return False, "Missing 'complete' field in validation data"
+        return True, None
+    
+    # If jsonschema is available, do more thorough validation
+    if 'jsonschema' in globals() and HAS_JSONSCHEMA:
+        module = globals()['jsonschema']
+        try:
+            module.validate(instance=data, schema=schema)
+            return True, None
+        except Exception as e:
+            return False, f"Schema validation error: {str(e)}"
+    
+    # If we reached here, basic validation passed
+    return True, None
 
 class FormProcessor:
     """Service for processing forms, extracting questions, and managing form structure."""
@@ -272,15 +372,39 @@ class FormProcessor:
             current_app.logger.info(f"Detected potential form with few explicit questions ({question_mark_count} question marks, {line_count} lines)")
             return self._extract_form_fields(document_text)
         
-        # Standard question extraction for regular forms
+        # Standard question extraction for regular forms with enhanced instructions
         prompt = f"""
-        Extract ALL questions from this form document. Do not miss any questions, including sub-questions.
+        You are a specialized form analyzer with the critical task of extracting EVERY SINGLE question, field, and input area from the provided form document.
+        Your extraction must be 100% COMPLETE and EXACT. Missing even one field is considered a critical failure.
         
-        Include:
-        1. The EXACT question text as it appears in the document, preserving capitalization and punctuation
-        2. The question type (text, textarea, radio, checkbox, select, date, email, number, etc.)
-        3. Any options for multiple choice questions
-        4. Whether the question is required
+        EXTRACTION REQUIREMENTS:
+        1. Extract ALL questions, fields, and input areas in the EXACT order they appear in the document
+        2. Preserve the EXACT original text, including:
+           - All capitalization, punctuation, and formatting
+           - All numbering or lettering systems (e.g., "1.", "a)", "i.")
+           - Any instructions or context preceding or following questions
+        3. Identify the appropriate field type for each question:
+           - text: for short single-line answers
+           - textarea: for longer, multi-line responses
+           - radio: for single-selection options (Yes/No, multiple choice)
+           - checkbox: for multiple-selection options
+           - select: for dropdown selections
+           - date: for date inputs
+           - email: for email addresses
+           - number: for numerical inputs
+           - phone: for phone numbers
+           - time: for time inputs
+        4. For checkbox, radio and select types, include ALL options exactly as written
+        5. Determine whether each field is required based on context
+        
+        CRITICAL EXTRACTION APPROACH:
+        - Carefully examine the ENTIRE document for ALL possible input fields
+        - Look for lines that end with colons, blank spaces, underscores or boxes
+        - Identify any tables with rows that need responses
+        - Check for signature and date fields at the end of the form
+        - Pay special attention to YES/NO questions, checkboxes, and option lists
+        - Consider section headings and instructions that may introduce fields
+        - Look for any numbered or lettered items that may require responses
         
         Format the output as a JSON array of questions with this structure:
         {{
@@ -294,10 +418,13 @@ class FormProcessor:
             ]
         }}
         
-        IMPORTANT:
-        - DO NOT miss any questions, even if they seem minor
-        - DO NOT modify the question text in any way - use the EXACT original wording
-        - DO NOT combine questions - each question should be a separate entry
+        ABSOLUTE REQUIREMENTS:
+        - DO NOT miss ANY questions, fields, or input areas, no matter how small or seemingly insignificant
+        - DO NOT modify the question text in ANY way - use the EXACT original wording
+        - DO NOT combine or merge questions - each question must be a separate entry
+        - DO NOT reorder questions - maintain the EXACT order from the document
+        - DO NOT omit context or instructions that help understand the question
+        - DO NOT add or modify numbering or lettering that isn't in the original
         - For forms with checkboxes or multiple selections, include all options
         - Identify instruction text preceding or around questions, and include it in the question text
         - Look for blank lines, text followed by colons, and other patterns that indicate form fields
@@ -315,7 +442,23 @@ class FormProcessor:
                 messages=[
                     {
                         "role": "system", 
-                        "content": "You are a form processing system. Your task is to extract ALL questions from forms with 100% accuracy. Do not miss any questions. Do not modify the text of questions."
+                        "content": """You are an advanced form processing system with perfect attention to detail. Your task is to extract ALL questions and fields from forms with 100% accuracy and completeness.
+
+EXTRACTION PRINCIPLES:
+1. Thoroughness: You must identify and extract EVERY question and field, no matter how minor
+2. Exactness: Preserve the EXACT text, capitalization, punctuation, and formatting
+3. Ordering: Maintain the EXACT order of questions as they appear in the document
+4. Integrity: Never combine, split, rephrase or modify questions in any way
+5. Comprehensiveness: Include all context and instructions surrounding questions
+
+Forms often contain various input mechanisms beyond just explicit questions, you must identify:
+- Standard questions with question marks
+- Implicitly required information (Name:, Address:, etc.)
+- Blank lines or spaces for writing
+- Checkboxes and radio buttons
+- Signature fields and date fields
+- Tables with input cells
+- Any text that implies the need for user input"""
                     },
                     {"role": "user", "content": prompt}
                 ],
@@ -324,13 +467,52 @@ class FormProcessor:
             
             try:
                 extracted_data = json.loads(response.choices[0].message.content)
+                
+                # Validate extracted data against our JSON schema
+                is_valid, error = validate_json_schema(extracted_data, FORM_QUESTION_SCHEMA)
+                
+                if not is_valid:
+                    current_app.logger.warning(f"Extracted questions failed schema validation: {error}")
+                    current_app.logger.warning("Will attempt to correct the structure...")
+                    
+                    # If schema validation failed but we have some data, try to fix it
+                    if isinstance(extracted_data, dict) and ("questions" in extracted_data or "fields" in extracted_data):
+                        # Check for alternative keys that might have been used
+                        questions = extracted_data.get("questions", extracted_data.get("fields", []))
+                        
+                        # Ensure every question has the required fields
+                        for q in questions:
+                            if "question" not in q and "text" in q:
+                                q["question"] = q["text"]
+                            if "type" not in q:
+                                q["type"] = "text"
+                            if "required" not in q:
+                                q["required"] = False
+                        
+                        corrected_data = {"questions": questions}
+                        # Validate the corrected data
+                        is_valid, _ = validate_json_schema(corrected_data, FORM_QUESTION_SCHEMA)
+                        
+                        if is_valid:
+                            current_app.logger.info("Successfully corrected the questions structure")
+                            questions = corrected_data["questions"]
+                            current_app.logger.info(f"Successfully extracted {len(questions)} questions")
+                            return questions
+                    
+                    # If correction attempt failed, log and proceed to fallback
+                    current_app.logger.error("Could not correct schema validation issues, trying fallback extraction")
+                    return self._fallback_form_extraction(document_text)
+                
+                # If schema validation passed, extract questions normally
                 questions = extracted_data.get("questions", [])
                 current_app.logger.info(f"Successfully extracted {len(questions)} questions")
                 return questions
+                
             except json.JSONDecodeError as e:
                 current_app.logger.error(f"JSON decode error: {str(e)}")
                 current_app.logger.error(f"Raw response: {response.choices[0].message.content}")
-                return []
+                # Try fallback extraction on JSON parse failure
+                return self._fallback_form_extraction(document_text)
                 
         except Exception as e:
             current_app.logger.error(f"Error extracting questions: {str(e)}")
@@ -399,12 +581,28 @@ class FormProcessor:
                 messages=[
                     {
                         "role": "system", 
-                        "content": (
-                            "You are a specialized form field extractor. Your job is to identify ALL input areas "
-                            "in structured forms, even when they don't appear as traditional questions. Look for "
-                            "labels, blank spaces, underlines, checkboxes, and any other indicators that user input "
-                            "is expected. Incident forms, medical forms, and administrative forms often use these patterns."
-                        )
+                        "content": """You are an expert form field extractor specialized in extracting input fields from complex, highly structured forms where fields might not appear as traditional questions.
+
+EXTRACTION GOALS:
+1. Identify and extract EVERY possible input field, regardless of how it's presented
+2. Maintain the EXACT wording of each field label without modifications
+3. Preserve the EXACT order of fields as they appear in the document
+4. Determine the most appropriate field type for each input area
+5. Identify all options for multiple-choice or selection fields
+
+FORM FIELD PATTERNS TO IDENTIFY:
+- Standard questions with question marks
+- Lines ending with colons followed by blank space
+- Underlined spaces, boxes, or blank areas for writing
+- Checkboxes and radio buttons with their corresponding options
+- Tables with cells that need to be filled
+- Signature spaces and date fields
+- Numbered or bulleted items requiring responses
+- Yes/No choices and other option pairs
+- Instructions that imply user input is required
+- Fields for personal information (name, address, contact details)
+
+You must be extremely thorough in your extraction, treating ANY text that could require user input as a form field that must be included."""
                     },
                     {"role": "user", "content": prompt}
                 ],
@@ -413,6 +611,45 @@ class FormProcessor:
             
             try:
                 extracted_data = json.loads(response.choices[0].message.content)
+                
+                # Validate extracted data against our JSON schema
+                is_valid, error = validate_json_schema(extracted_data, FORM_QUESTION_SCHEMA)
+                
+                if not is_valid:
+                    current_app.logger.warning(f"Specialized extraction failed schema validation: {error}")
+                    current_app.logger.warning("Attempting to correct the structure...")
+                    
+                    # If schema validation failed but we have some data, try to fix it
+                    if isinstance(extracted_data, dict) and ("questions" in extracted_data or "fields" in extracted_data):
+                        # Check for alternative keys that might have been used
+                        questions = extracted_data.get("questions", extracted_data.get("fields", []))
+                        
+                        # Ensure every question has the required fields
+                        for q in questions:
+                            if "question" not in q and "text" in q:
+                                q["question"] = q["text"]
+                            if "type" not in q:
+                                q["type"] = "text"
+                            if "required" not in q:
+                                q["required"] = False
+                            if q.get("type") in ["radio", "checkbox", "select"] and "options" not in q:
+                                q["options"] = []
+                        
+                        corrected_data = {"questions": questions}
+                        # Validate the corrected data
+                        is_valid, _ = validate_json_schema(corrected_data, FORM_QUESTION_SCHEMA)
+                        
+                        if is_valid:
+                            current_app.logger.info("Successfully corrected the specialized extraction structure")
+                            questions = corrected_data["questions"]
+                            current_app.logger.info(f"Successfully extracted {len(questions)} form fields")
+                            return questions
+                    
+                    # If correction attempt failed, log and proceed to fallback
+                    current_app.logger.error("Could not correct schema validation issues, using fallback extraction")
+                    return self._fallback_form_extraction(document_text)
+                
+                # If schema validation passed, extract questions normally
                 questions = extracted_data.get("questions", [])
                 current_app.logger.info(f"Successfully extracted {len(questions)} form fields using specialized extractor")
                 
@@ -549,6 +786,9 @@ class FormProcessor:
                 """
         
         prompt = f"""
+        You are a form validation expert conducting a thorough verification of extracted questions to ensure MAXIMUM ACCURACY. 
+        Nothing is more important than capturing ALL questions EXACTLY as they appear in the original form.
+        
         Review these {len(questions)} questions extracted from a form and identify any issues:
         
         EXTRACTED QUESTIONS:
@@ -556,22 +796,41 @@ class FormProcessor:
         
         {context_section}
         
-        VALIDATION TASKS:
-        1. Check for missing questions (look for numerical sequences, lettered items, or logical gaps)
-        2. Identify incomplete questions (missing parts or context)
-        3. Find questions that should be split into multiple questions
-        4. Look for questions that are not questions (instructions, headers, etc.)
-        5. Compare with the original document text (if provided) to spot missed fields
-        6. Verify if any fields are mentioned in the text but not in the extracted questions
-        7. Check for form elements like checkboxes, signature lines, or date fields that may have been missed
+        CRITICAL VALIDATION TASKS:
+        1. EXACT QUESTION IDENTIFICATION: Look for signs of questions in the original text that were completely missed, such as:
+           - Questions with question marks
+           - Lines ending with colons
+           - Fields with blank spaces for writing
+           - Numbered or lettered items that form a sequence
+           - Table rows with empty cells to be filled
+           - Checkbox items or option lists
+           - Signature, date, or approval fields
+           - Any text that implies user input is required
+        
+        2. THOROUGH VERIFICATION: Compare the extracted questions with the original document text, looking carefully for:
+           - Questions that appear in the document but not in the extracted list
+           - Sections that require input but were not recognized as questions
+           - Checkbox options or radio button selections that were missed
+           - Form fields indicated by underscores, boxes, or blank spaces
+           - Implicit questions (statements expecting a response)
+           - Tables or structured content that should be converted to questions
+        
+        3. FORMAT AND STRUCTURE CHECKS:
+           - Are all questions captured exactly as written in the original document?
+           - Are question numbers and letters preserved correctly?
+           - Are multi-part questions properly identified?
+           - Are tables with input fields properly represented?
+           - Are dropdown or selection menus captured with all options?
         
         Format your response as a JSON object with:
         {{
             "complete": true|false (whether the extraction seems complete),
-            "issues": ["issue 1", "issue 2", ...],
-            "suggestions": ["suggestion 1", "suggestion 2", ...],
-            "missed_questions": ["missed question 1", "missed question 2", ...]
+            "issues": ["specific issue 1", "specific issue 2", ...],
+            "suggestions": ["specific, actionable suggestion 1", "specific, actionable suggestion 2", ...],
+            "missed_questions": ["EXACT text of missed question 1", "EXACT text of missed question 2", ...]
         }}
+        
+        The "missed_questions" field is CRITICALLY IMPORTANT - include the EXACT text of any questions found in the document that were not in the extracted list.
         """
         
         try:
@@ -582,11 +841,25 @@ class FormProcessor:
                 messages=[
                     {
                         "role": "system", 
-                        "content": """You are a specialized form validation expert. Your task is to analyze extracted form 
-                        questions for completeness, accuracy and thoroughness. You have exceptional attention to detail
-                        and can identify subtle patterns that might indicate missing questions. You are particularly 
-                        attentive to number sequences, section headings, and standard form components like signature 
-                        fields that might be missed in extraction."""
+                        "content": """You are a highly specialized form validation expert with perfect attention to detail. Your task is to analyze extracted form questions against the original document, identifying ANY discrepancies or missed fields with 100% accuracy.
+
+VALIDATION PRINCIPLES:
+1. COMPLETENESS: Your primary goal is to identify ANY questions that exist in the original document but were missed in extraction
+2. PRECISENESS: Verify that extracted questions match the EXACT wording, capitalization, and punctuation in the original
+3. THOROUGHNESS: Look beyond just obvious questions to identify ALL form fields requiring user input
+4. CONTEXT AWARENESS: Consider the document structure, numbering systems, and logical flow
+
+Form fields can appear in many formats beyond just questions with question marks:
+- Standard questions with question marks
+- Text followed by colons indicating an input field (Name:, Address:)
+- Lines or underscores indicating spaces for user input
+- Checkboxes and radio button options 
+- Tables with cells for user input
+- Signature fields, date fields, or initial fields
+- Numbered or bulleted lists requiring responses
+- Section labels that imply responses (Comments, Feedback, etc.)
+
+Your validation must be exhaustive, identifying ANY field that exists in the original document but was missed in extraction."""
                     },
                     {"role": "user", "content": prompt}
                 ],

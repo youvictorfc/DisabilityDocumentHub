@@ -77,13 +77,23 @@ def upload_form():
             flash(f'File too large ({file_size_mb:.1f} MB). Maximum size is {max_size_mb} MB.', 'danger')
             return render_template('forms/form_upload.html')
         
+        # Make sure upload directory exists
+        os.makedirs(current_app.config['FORM_UPLOAD_FOLDER'], exist_ok=True)
+        
         # Save the file
         filename = secure_filename(file.filename)
         file_path = os.path.join(current_app.config['FORM_UPLOAD_FOLDER'], filename)
         file.save(file_path)
         
-        # Make sure upload directory exists
-        os.makedirs(current_app.config['FORM_UPLOAD_FOLDER'], exist_ok=True)
+        # Enhanced logging for form upload process
+        current_app.logger.info("=" * 50)
+        current_app.logger.info(f"FORM UPLOAD PROCESS STARTED")
+        current_app.logger.info(f"Form Title: {title}")
+        current_app.logger.info(f"Filename: {filename}")
+        current_app.logger.info(f"File Type: {file_extension}")
+        current_app.logger.info(f"File Path: {file_path}")
+        current_app.logger.info(f"Uploaded By: {current_user.username} (ID: {current_user.id})")
+        current_app.logger.info("=" * 50)
         
         # Variable to hold form structure
         form_structure = None
@@ -92,6 +102,7 @@ def upload_form():
         try:
             # Flag to track if we should use OpenAI extraction
             use_openai_extraction = True
+            current_app.logger.info("Starting form type detection to determine extraction method...")
             
             # Special case for the Incident Form
             if "incident" in filename.lower() or (file_extension.lower() in ["docx"] and filename.lower().find("incident") != -1):
@@ -306,7 +317,11 @@ def upload_form():
             # Use OpenAI extraction if we haven't already used a template
             if use_openai_extraction:
                 # Extract form structure using OpenAI - preserve EXACT questions and order
-                current_app.logger.info(f"Extracting EXACT form structure from {file_path}")
+                current_app.logger.info("=" * 50)
+                current_app.logger.info(f"NO TEMPLATE MATCH FOUND - USING AI-BASED EXTRACTION")
+                current_app.logger.info(f"Extracting EXACT form structure from {file_path} using enhanced OpenAI processing")
+                current_app.logger.info("Using multi-pass verification with JSON schema to ensure accuracy")
+                current_app.logger.info("=" * 50)
                 
                 try:
                     # Extract the form structure
@@ -318,6 +333,14 @@ def upload_form():
                     # Validate the extracted structure
                     questions_count = len(form_structure.get('questions', []))
                     current_app.logger.info(f"Successfully extracted {questions_count} questions in their exact original form")
+                    
+                    # Log the first few questions to provide insight into extraction quality
+                    if questions_count > 0:
+                        current_app.logger.info("Sample of extracted questions:")
+                        for i, question in enumerate(form_structure.get('questions', [])[:3]):  # Show first 3 questions
+                            current_app.logger.info(f"  Q{i+1}: {question.get('question_text', '')[:100]}{'...' if len(question.get('question_text', '')) > 100 else ''}")
+                        if questions_count > 3:
+                            current_app.logger.info(f"  ...and {questions_count - 3} more questions")
                     
                     # Check if we have a reasonable number of questions
                     if questions_count == 0:
@@ -661,6 +684,13 @@ def edit_form(form_id):
                 
                 # Use OpenAI extraction if we haven't already used a template
                 if use_openai_extraction:
+                    # Extract form structure using OpenAI - preserve EXACT questions and order
+                    current_app.logger.info("=" * 50)
+                    current_app.logger.info(f"NO TEMPLATE MATCH FOUND - USING AI-BASED EXTRACTION FOR EDITED FORM")
+                    current_app.logger.info(f"Extracting EXACT form structure from {file_path} using enhanced OpenAI processing")
+                    current_app.logger.info("Using multi-pass verification with JSON schema to ensure accuracy")
+                    current_app.logger.info("=" * 50)
+                    
                     # Extract the form structure
                     form_structure = extract_form_structure(file_path)
                     
@@ -670,6 +700,14 @@ def edit_form(form_id):
                     # Validate the extracted structure
                     questions_count = len(form_structure.get('questions', []))
                     current_app.logger.info(f"Successfully extracted {questions_count} questions in their exact original form")
+                    
+                    # Log the first few questions to provide insight into extraction quality
+                    if questions_count > 0:
+                        current_app.logger.info("Sample of extracted questions:")
+                        for i, question in enumerate(form_structure.get('questions', [])[:3]):  # Show first 3 questions
+                            current_app.logger.info(f"  Q{i+1}: {question.get('question_text', '')[:100]}{'...' if len(question.get('question_text', '')) > 100 else ''}")
+                        if questions_count > 3:
+                            current_app.logger.info(f"  ...and {questions_count - 3} more questions")
                     
                     # Check if we have a reasonable number of questions
                     if questions_count == 0:
