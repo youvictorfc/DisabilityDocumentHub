@@ -279,6 +279,41 @@ def upload_form():
                     except Exception as e:
                         current_app.logger.info(f"Error checking if file is a feedback form: {str(e)}")
                         
+            # Check for Meeting Minutes
+            elif "meeting minutes" in filename.lower() or "meeting_minutes" in filename.lower():
+                current_app.logger.info("Detected a Meeting Minutes upload, using specialized template")
+                # Import directly here to avoid circular imports
+                from services.form.meeting_minutes_template import get_meeting_minutes_template, is_meeting_minutes
+                
+                # For docx files, we immediately use the template
+                if filename.lower().endswith(".docx"):
+                    current_app.logger.info("Using meeting minutes template for .docx file")
+                    form_structure = {
+                        "questions": get_meeting_minutes_template()
+                    }
+                    questions_count = len(form_structure.get('questions', []))
+                    current_app.logger.info(f"Using meeting minutes template with {questions_count} fields")
+                    use_openai_extraction = False
+                # For other file types, we try to extract content and check if it looks like meeting minutes
+                else:
+                    try:
+                        # Try to extract text content if applicable
+                        from services.document.document_service import extract_text_from_file
+                        content = extract_text_from_file(file_path)
+                        if content and is_meeting_minutes(content):
+                            current_app.logger.info("Detected meeting minutes content, using specialized template")
+                            form_structure = {
+                                "questions": get_meeting_minutes_template()
+                            }
+                            questions_count = len(form_structure.get('questions', []))
+                            current_app.logger.info(f"Using meeting minutes template with {questions_count} fields")
+                            use_openai_extraction = False
+                        else:
+                            # Not meeting minutes or couldn't extract content, proceed to check for next form type
+                            current_app.logger.info("Content doesn't appear to be meeting minutes, checking for other form types")
+                    except Exception as e:
+                        current_app.logger.info(f"Error checking if file is meeting minutes: {str(e)}")
+                        
             # Check for Home Safety Checklist
             elif "home safety" in filename.lower() or "home_safety_checklist" in filename.lower():
                 current_app.logger.info("Detected a Home Safety Checklist upload, using specialized template")
@@ -681,6 +716,41 @@ def edit_form(form_id):
                                 current_app.logger.info("Content doesn't appear to be a conflict form, proceeding with normal extraction")
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a conflict form: {str(e)}")
+                            
+                # Special case for Meeting Minutes
+                elif "meeting minutes" in filename.lower() or "meeting_minutes" in filename.lower():
+                    current_app.logger.info("Detected a Meeting Minutes upload, using specialized template")
+                    # Import directly here to avoid circular imports
+                    from services.form.meeting_minutes_template import get_meeting_minutes_template, is_meeting_minutes
+                    
+                    # For docx files, we immediately use the template
+                    if filename.lower().endswith(".docx"):
+                        current_app.logger.info("Using meeting minutes template for .docx file")
+                        form_structure = {
+                            "questions": get_meeting_minutes_template()
+                        }
+                        questions_count = len(form_structure.get('questions', []))
+                        current_app.logger.info(f"Using meeting minutes template with {questions_count} fields")
+                        use_openai_extraction = False
+                    # For other file types, we try to extract content and check if it looks like meeting minutes
+                    else:
+                        try:
+                            # Try to extract text content if applicable
+                            from services.document.document_service import extract_text_from_file
+                            content = extract_text_from_file(file_path)
+                            if content and is_meeting_minutes(content):
+                                current_app.logger.info("Detected meeting minutes content, using specialized template")
+                                form_structure = {
+                                    "questions": get_meeting_minutes_template()
+                                }
+                                questions_count = len(form_structure.get('questions', []))
+                                current_app.logger.info(f"Using meeting minutes template with {questions_count} fields")
+                                use_openai_extraction = False
+                            else:
+                                # Not meeting minutes or couldn't extract content, proceed to check for next form type
+                                current_app.logger.info("Content doesn't appear to be meeting minutes, checking for other form types")
+                        except Exception as e:
+                            current_app.logger.info(f"Error checking if file is meeting minutes: {str(e)}")
                             
                 # Special case for Home Safety Checklist
                 elif "home safety" in filename.lower() or "home_safety_checklist" in filename.lower():
