@@ -124,8 +124,43 @@ def extract_text_from_file(file_path):
             return text
             
         elif file_path.endswith('.docx'):
-            # This is a placeholder - in a real app, you'd use python-docx
-            return "This is sample content from a DOCX file for demonstration purposes."
+            try:
+                # Import the existing extract_docx functionality
+                from extract_docx import extract_docx_content
+                
+                # Extract structured content from the DOCX
+                structured_content = extract_docx_content(file_path)
+                
+                # Convert the structured content to plain text
+                text_content = []
+                
+                # Add paragraphs
+                for para in structured_content["paragraphs"]:
+                    text_content.append(para)
+                
+                # Add tables in a readable format
+                for i, table in enumerate(structured_content["tables"]):
+                    text_content.append(f"\nTable {i+1}:")
+                    for row in table:
+                        text_content.append(" | ".join(row))
+                    text_content.append("")  # Empty line after table
+                
+                return "\n".join(text_content)
+            except Exception as docx_error:
+                current_app.logger.error(f"Error extracting text from DOCX: {str(docx_error)}")
+                # Try fallback to simpler method
+                try:
+                    import docx
+                    doc = docx.Document(file_path)
+                    full_text = []
+                    for para in doc.paragraphs:
+                        if para.text.strip():
+                            full_text.append(para.text.strip())
+                    return '\n'.join(full_text)
+                except Exception as simple_error:
+                    current_app.logger.error(f"Error in fallback DOCX extraction: {str(simple_error)}")
+                    # Last resort fallback
+                    return f"Content extracted from {os.path.basename(file_path)}"
             
         else:
             # Try to read as a text file
