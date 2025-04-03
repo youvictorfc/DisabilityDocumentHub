@@ -18,7 +18,7 @@ def get_plant_asset_hazard_checklist_template() -> List[Dict[str, Any]]:
         # General Information section
         {
             "id": "general_info_note",
-            "question_text": "If "yes" is the answer to a question in the checklist, the plant, parts of the plant and/or the situation associated with the hazard should be written in the space provided.",
+            "question_text": "If 'yes' is the answer to a question in the checklist, the plant, parts of the plant and/or the situation associated with the hazard should be written in the space provided.",
             "question_type": "information",
             "required": False,
             "options": []
