@@ -998,6 +998,41 @@ def edit_form(form_id):
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a root cause analysis form: {str(e)}")
                 
+                # Check for Vehicle Safety Check Sheet
+                if "vehicle" in filename.lower() or "safety check" in filename.lower() or "vehicle safety" in filename.lower():
+                    current_app.logger.info("Detected a Vehicle Safety Check Sheet upload, using specialized template")
+                    # Import directly here to avoid circular imports
+                    from services.form.vehicle_safety_check_template import get_vehicle_safety_check_template, is_vehicle_safety_check
+                    
+                    # For docx files, we immediately use the template
+                    if filename.lower().endswith(".docx"):
+                        current_app.logger.info("Using vehicle safety check template for .docx file")
+                        form_structure = {
+                            "questions": get_vehicle_safety_check_template()
+                        }
+                        questions_count = len(form_structure.get('questions', []))
+                        current_app.logger.info(f"Using vehicle safety check template with {questions_count} fields")
+                        use_openai_extraction = False
+                    # For other file types, we try to extract content and check if it looks like a vehicle safety check
+                    else:
+                        try:
+                            # Try to extract text content if applicable
+                            from services.document.document_service import extract_text_from_file
+                            content = extract_text_from_file(file_path)
+                            if content and is_vehicle_safety_check(content):
+                                current_app.logger.info("Detected vehicle safety check content, using specialized template")
+                                form_structure = {
+                                    "questions": get_vehicle_safety_check_template()
+                                }
+                                questions_count = len(form_structure.get('questions', []))
+                                current_app.logger.info(f"Using vehicle safety check template with {questions_count} fields")
+                                use_openai_extraction = False
+                            else:
+                                # Not a vehicle safety check or couldn't extract content, proceed to normal extraction
+                                current_app.logger.info("Content doesn't appear to be a vehicle safety check, proceeding with normal extraction")
+                        except Exception as e:
+                            current_app.logger.info(f"Error checking if file is a vehicle safety check: {str(e)}")
+                
                 # Use OpenAI extraction if we haven't already used a template
                 if use_openai_extraction:
                     # Extract form structure using OpenAI - preserve EXACT questions and order
