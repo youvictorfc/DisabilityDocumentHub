@@ -384,6 +384,41 @@ def upload_form():
                     except Exception as e:
                         current_app.logger.info(f"Error checking if file is a hazardous substances checklist: {str(e)}")
             
+            # Check for Plant-Asset Hazard Checklist (more specific than general hazard form)
+            elif "plant-asset" in filename.lower() or "plant_asset" in filename.lower() or "new plant" in filename.lower():
+                current_app.logger.info("Detected a Plant-Asset Hazard Checklist upload, using specialized template")
+                # Import directly here to avoid circular imports
+                from services.form.plant_asset_hazard_checklist_template import get_plant_asset_hazard_checklist_template, is_plant_asset_hazard_checklist
+                
+                # For docx files, we immediately use the template
+                if filename.lower().endswith(".docx"):
+                    current_app.logger.info("Using plant-asset hazard checklist template for .docx file")
+                    form_structure = {
+                        "questions": get_plant_asset_hazard_checklist_template()
+                    }
+                    questions_count = len(form_structure.get('questions', []))
+                    current_app.logger.info(f"Using plant-asset hazard checklist template with {questions_count} fields")
+                    use_openai_extraction = False
+                # For other file types, we try to extract content and check if it looks like a plant-asset hazard checklist
+                else:
+                    try:
+                        # Try to extract text content if applicable
+                        from services.document.document_service import extract_text_from_file
+                        content = extract_text_from_file(file_path)
+                        if content and is_plant_asset_hazard_checklist(content):
+                            current_app.logger.info("Detected plant-asset hazard checklist content, using specialized template")
+                            form_structure = {
+                                "questions": get_plant_asset_hazard_checklist_template()
+                            }
+                            questions_count = len(form_structure.get('questions', []))
+                            current_app.logger.info(f"Using plant-asset hazard checklist template with {questions_count} fields")
+                            use_openai_extraction = False
+                        else:
+                            # Not a plant-asset hazard checklist or couldn't extract content, proceed to check for general hazard form
+                            current_app.logger.info("Content doesn't appear to be a plant-asset hazard checklist, checking for general hazard form")
+                    except Exception as e:
+                        current_app.logger.info(f"Error checking if file is a plant-asset hazard checklist: {str(e)}")
+            
             # Check for general Hazard Form
             elif "hazard" in filename.lower() or "hazard form" in filename.lower():
                 current_app.logger.info("Detected a Hazard Form upload, using specialized template")
@@ -822,6 +857,41 @@ def edit_form(form_id):
                                 current_app.logger.info("Content doesn't appear to be a hazardous substances checklist, checking for general hazard form")
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a hazardous substances checklist: {str(e)}")
+                
+                # Check for Plant-Asset Hazard Checklist (more specific than general hazard form)
+                elif "plant-asset" in filename.lower() or "plant_asset" in filename.lower() or "new plant" in filename.lower():
+                    current_app.logger.info("Detected a Plant-Asset Hazard Checklist upload, using specialized template")
+                    # Import directly here to avoid circular imports
+                    from services.form.plant_asset_hazard_checklist_template import get_plant_asset_hazard_checklist_template, is_plant_asset_hazard_checklist
+                    
+                    # For docx files, we immediately use the template
+                    if filename.lower().endswith(".docx"):
+                        current_app.logger.info("Using plant-asset hazard checklist template for .docx file")
+                        form_structure = {
+                            "questions": get_plant_asset_hazard_checklist_template()
+                        }
+                        questions_count = len(form_structure.get('questions', []))
+                        current_app.logger.info(f"Using plant-asset hazard checklist template with {questions_count} fields")
+                        use_openai_extraction = False
+                    # For other file types, we try to extract content and check if it looks like a plant-asset hazard checklist
+                    else:
+                        try:
+                            # Try to extract text content if applicable
+                            from services.document.document_service import extract_text_from_file
+                            content = extract_text_from_file(file_path)
+                            if content and is_plant_asset_hazard_checklist(content):
+                                current_app.logger.info("Detected plant-asset hazard checklist content, using specialized template")
+                                form_structure = {
+                                    "questions": get_plant_asset_hazard_checklist_template()
+                                }
+                                questions_count = len(form_structure.get('questions', []))
+                                current_app.logger.info(f"Using plant-asset hazard checklist template with {questions_count} fields")
+                                use_openai_extraction = False
+                            else:
+                                # Not a plant-asset hazard checklist or couldn't extract content, proceed to check for general hazard form
+                                current_app.logger.info("Content doesn't appear to be a plant-asset hazard checklist, checking for general hazard form")
+                        except Exception as e:
+                            current_app.logger.info(f"Error checking if file is a plant-asset hazard checklist: {str(e)}")
                 
                 # Check for general Hazard Form
                 elif "hazard" in filename.lower() or "hazard form" in filename.lower():

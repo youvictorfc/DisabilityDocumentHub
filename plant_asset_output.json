@@ -1,0 +1,800 @@
+{
+  "paragraphs": [
+    "If \u201cyes\u201d is the answer to a question in the checklist, the plant, parts of the plant and/or the situation associated with the hazard should be written in the space provided."
+  ],
+  "tables": [
+    [
+      [
+        "General Information",
+        "General Information"
+      ],
+      [
+        "Name of asset:",
+        "Date of Purchase:"
+      ],
+      [
+        "Location:",
+        "Date of assessment:"
+      ],
+      [
+        "Name of assessor:",
+        "Owner/user of asset:"
+      ],
+      [
+        "Serial number:",
+        "Date of handover:"
+      ],
+      [
+        "Photo of asset:\n\n\n\n\n\n\n\n\n\n\n\n\n",
+        "Photo of asset:\n\n\n\n\n\n\n\n\n\n\n\n\n"
+      ]
+    ],
+    [
+      [
+        "Entanglement",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone\u2019s hair, clothing, gloves, necktie, jewellery, cleaning brushes, rags or other materials become entangled with moving parts of the plant, or materials in motion?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Crushing",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone be crushed due to:",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "a. Material falling off the plant?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "b. Uncontrolled or unexpected movement of the plant or its load?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "c. Lack of capacity for the plant to be slowed, stopped, or immobilised?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "d. The plant tipping or rolling over?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "e. Parts of the plant collapsing?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Cutting, stabbing, and puncturing",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone be cut, stabbed, or punctured due to:",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "a. Coming into contact with sharp or flying objects?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "b. Coming into contact with moving parts of the plant during testing, inspection, operation, maintenance, cleaning, or repair of the plant?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "c. The plant, parts of the plant or work pieces disintegrating?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "d. Work pieces being ejected?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "e. The mobility of the plant?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "f. Uncontrolled or unexpected movement of the plant?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "g. Other factors not mentioned?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Shearing",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone\u2019s body parts be sheared between two parts of the plant, or between a part of the plant and a work piece or structure?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Friction",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone be burnt due to contact with moving parts or surfaces of the plant, or material handled by the plant?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Striking",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone be struck by moving objects due to:",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "a. Uncontrolled or unexpected movement of the plant or material handled by the plant?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "b. The plant, parts of the plant or work pieces disintegrating?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "c. Work pieces being ejected?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "d. Mobility of the plant?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "e. Other factors not mentioned?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "High Pressure Fluid",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone come into contact with fluids under high pressure, due to plant failure or misuse of the plant?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Electrical",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone be injured by electrical shock or burnt due to:",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "a. The plant contacting live electrical conductors?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "b. The plant working within proximity to electrical conductors?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "c. Overload of electrical circuits?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "d. Damaged or poorly maintained electrical leads and cables?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "e. Damaged electrical switches?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "f. Water near electrical equipment?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "g. Lack of isolation procedures?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "h. Other factors not mentioned?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Explosion",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone be injured by explosion of gases, vapours, liquids, dusts, or other substances, triggered by the operation of the plant or by material handled by the plant?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Tripping, slipping, and falling",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone using the plant, or in the vicinity of the plant, slip, trip or fall due to:",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "a. Uneven or slippery work surfaces?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "b. Poor housekeeping, e.g., swarf in the vicinity of the plant, spillage not cleaned up?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "c. Obstacles being placed in the vicinity of the plant?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "d. Other factors not mentioned?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Can anyone fall from a height due to:",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "a. Lack of a proper work platform?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "b. Lack of proper stairs or ladders?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "c. Lack of guardrails or other suitable edge protection?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "d. Unprotected holes, penetrations, or gaps?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "e. poor floor or walking surfaces, such as the lack of a slip-resistant surface?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "f. steep walking surfaces?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "g. Collapse of the supporting structure?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "h. Other factors not mentioned?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Ergonomic",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone be injured due to:",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "a. Poorly designed seating?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "b. Repetitive body movement?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "c. Constrained body posture or the need for\nExcessive effort?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "d. Design deficiency causing mental or\nPsychological stress?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "e. Inadequate or poorly placed lighting?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "f. Lack of consideration given to human error or human behaviour?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "g. Other factors not mentioned?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Suffocation",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone be suffocated due to lack of oxygen, or atmospheric contamination?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "High temperature or fire",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone come into contact with objects at high temperatures?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Can anyone be injured by fire?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Temperature (thermal comfort)",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone suffer ill-health due to exposure to high or low temperatures?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Other hazards",
+        "Yes",
+        "No",
+        "NA",
+        "Comments",
+        "Comments",
+        "Comments"
+      ],
+      [
+        "Can anyone be injured or suffer ill-health from exposure to:",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "a. Chemicals?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "b. Toxic gases or vapours?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "c. Fumes?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "d. Dust?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "e. Noise?",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Corrective Action",
+        "Corrective Action",
+        "Corrective Action",
+        "Corrective Action",
+        "Corrective Action",
+        "Corrective Action",
+        "Corrective Action"
+      ],
+      [
+        "Action",
+        "Who is responsible",
+        "Who is responsible",
+        "Who is responsible",
+        "Who is responsible",
+        "Due date",
+        "Completed"
+      ],
+      [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "\u2610Yes \u2610No  "
+      ],
+      [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "\u2610Yes \u2610No  "
+      ]
+    ]
+  ]
+}
