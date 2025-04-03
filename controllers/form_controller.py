@@ -279,43 +279,42 @@ def upload_form():
                     except Exception as e:
                         current_app.logger.info(f"Error checking if file is a feedback form: {str(e)}")
                         
-            # Special case for the Hazard Form
-            # Check for Hazardous Substances Checklist first (more specific than general hazard form)
-            elif "hazardous substances" in filename.lower() or "hazardous_substances_checklist" in filename.lower():
-                current_app.logger.info("Detected a Hazardous Substances Checklist upload, using specialized template")
+            # Check for Home Safety Checklist
+            elif "home safety" in filename.lower() or "home_safety_checklist" in filename.lower():
+                current_app.logger.info("Detected a Home Safety Checklist upload, using specialized template")
                 # Import directly here to avoid circular imports
-                from services.form.hazardous_substances_checklist_template import get_hazardous_substances_checklist_template, is_hazardous_substances_checklist
+                from services.form.home_safety_checklist_template import get_home_safety_checklist_template, is_home_safety_checklist
                 
                 # For docx files, we immediately use the template
                 if filename.lower().endswith(".docx"):
-                    current_app.logger.info("Using hazardous substances checklist template for .docx file")
+                    current_app.logger.info("Using home safety checklist template for .docx file")
                     form_structure = {
-                        "questions": get_hazardous_substances_checklist_template()
+                        "questions": get_home_safety_checklist_template()
                     }
                     questions_count = len(form_structure.get('questions', []))
-                    current_app.logger.info(f"Using hazardous substances checklist template with {questions_count} fields")
+                    current_app.logger.info(f"Using home safety checklist template with {questions_count} fields")
                     use_openai_extraction = False
-                # For other file types, we try to extract content and check if it looks like a hazardous substances checklist
+                # For other file types, we try to extract content and check if it looks like a home safety checklist
                 else:
                     try:
                         # Try to extract text content if applicable
                         from services.document.document_service import extract_text_from_file
                         content = extract_text_from_file(file_path)
-                        if content and is_hazardous_substances_checklist(content):
-                            current_app.logger.info("Detected hazardous substances checklist content, using specialized template")
+                        if content and is_home_safety_checklist(content):
+                            current_app.logger.info("Detected home safety checklist content, using specialized template")
                             form_structure = {
-                                "questions": get_hazardous_substances_checklist_template()
+                                "questions": get_home_safety_checklist_template()
                             }
                             questions_count = len(form_structure.get('questions', []))
-                            current_app.logger.info(f"Using hazardous substances checklist template with {questions_count} fields")
+                            current_app.logger.info(f"Using home safety checklist template with {questions_count} fields")
                             use_openai_extraction = False
                         else:
-                            # Not a hazardous substances checklist or couldn't extract content, proceed to check for general hazard form
-                            current_app.logger.info("Content doesn't appear to be a hazardous substances checklist, checking for general hazard form")
+                            # Not a home safety checklist or couldn't extract content, proceed to check for next form type
+                            current_app.logger.info("Content doesn't appear to be a home safety checklist, checking for other form types")
                     except Exception as e:
-                        current_app.logger.info(f"Error checking if file is a hazardous substances checklist: {str(e)}")
+                        current_app.logger.info(f"Error checking if file is a home safety checklist: {str(e)}")
             
-            # Check for Hazardous Substances Checklist first (more specific than general hazard form)
+            # Check for Hazardous Substances Checklist
             elif "hazardous substances" in filename.lower() or "hazardous_substances_checklist" in filename.lower():
                 current_app.logger.info("Detected a Hazardous Substances Checklist upload, using specialized template")
                 # Import directly here to avoid circular imports
@@ -683,6 +682,41 @@ def edit_form(form_id):
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a conflict form: {str(e)}")
                             
+                # Special case for Home Safety Checklist
+                elif "home safety" in filename.lower() or "home_safety_checklist" in filename.lower():
+                    current_app.logger.info("Detected a Home Safety Checklist upload, using specialized template")
+                    # Import directly here to avoid circular imports
+                    from services.form.home_safety_checklist_template import get_home_safety_checklist_template, is_home_safety_checklist
+                    
+                    # For docx files, we immediately use the template
+                    if filename.lower().endswith(".docx"):
+                        current_app.logger.info("Using home safety checklist template for .docx file")
+                        form_structure = {
+                            "questions": get_home_safety_checklist_template()
+                        }
+                        questions_count = len(form_structure.get('questions', []))
+                        current_app.logger.info(f"Using home safety checklist template with {questions_count} fields")
+                        use_openai_extraction = False
+                    # For other file types, we try to extract content and check if it looks like a home safety checklist
+                    else:
+                        try:
+                            # Try to extract text content if applicable
+                            from services.document.document_service import extract_text_from_file
+                            content = extract_text_from_file(file_path)
+                            if content and is_home_safety_checklist(content):
+                                current_app.logger.info("Detected home safety checklist content, using specialized template")
+                                form_structure = {
+                                    "questions": get_home_safety_checklist_template()
+                                }
+                                questions_count = len(form_structure.get('questions', []))
+                                current_app.logger.info(f"Using home safety checklist template with {questions_count} fields")
+                                use_openai_extraction = False
+                            else:
+                                # Not a home safety checklist or couldn't extract content, proceed to normal extraction
+                                current_app.logger.info("Content doesn't appear to be a home safety checklist, proceeding with normal extraction")
+                        except Exception as e:
+                            current_app.logger.info(f"Error checking if file is a home safety checklist: {str(e)}")
+                
                 # Special case for the Hazard Form
                 # Check for Hazardous Substances Checklist first (more specific than general hazard form)
                 elif "hazardous substances" in filename.lower() or "hazardous_substances_checklist" in filename.lower():
