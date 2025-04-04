@@ -1058,8 +1058,32 @@ def edit_form(form_id):
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a waste risk assessment: {str(e)}")
                 
+                # Check for Nutrition Assessment form FIRST (more specific matching than generic "nutrition")
+                elif "nutrition assessment" in filename.lower() or "nutritional assessment" in filename.lower():
+                    current_app.logger.info("==== DETECTED NUTRITION ASSESSMENT FORM - USING SPECIALIZED TEMPLATE ====")
+                    # Import directly here to avoid circular imports
+                    from services.form.nutrition_assessment_template import get_nutrition_assessment_template
+                    
+                    # Always use the template for Nutrition Assessment form regardless of file format
+                    current_app.logger.info("Using Nutrition Assessment template for ALL file formats with matching filename")
+                    form_structure = {
+                        "questions": get_nutrition_assessment_template()
+                    }
+                    questions_count = len(form_structure.get('questions', []))
+                    current_app.logger.info(f"Using Nutrition Assessment template with {questions_count} fields")
+                    
+                    # Print sample of fields for verification
+                    current_app.logger.info("Sample fields from Nutrition Assessment template:")
+                    for i, q in enumerate(form_structure.get('questions', [])[:5]):
+                        current_app.logger.info(f"  Field {i+1}: {q.get('question_text', '')[:100]}...")
+                    
+                    use_openai_extraction = False
+                    current_app.logger.info("==== NUTRITION ASSESSMENT TEMPLATE APPLIED SUCCESSFULLY ====")
+                    current_app.logger.info(f"Original filename: {filename}")
+                    current_app.logger.info(f"File path: {file_path}")
+                
                 # Check for Nutrition and Swallowing Risk Checklist - Always use template regardless of file format
-                elif "nutrition" in filename.lower() or "swallowing" in filename.lower() or "nutrition and swallowing" in filename.lower():
+                elif "nutrition and swallowing" in filename.lower() or "swallowing risk" in filename.lower() or "nutrition checklist" in filename.lower():
                     current_app.logger.info("==== DETECTED NUTRITION AND SWALLOWING RISK CHECKLIST - USING SPECIALIZED TEMPLATE ====")
                     # Import directly here to avoid circular imports
                     from services.form.nutrition_swallowing_risk_template import get_nutrition_swallowing_risk_template
