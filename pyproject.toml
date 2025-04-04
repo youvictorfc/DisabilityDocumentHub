@@ -22,4 +22,5 @@ dependencies = [
     "sendgrid>=6.11.0",
     "trafilatura>=2.0.0",
     "jsonschema>=4.23.0",
+    "docx>=0.2.4",
 ]
