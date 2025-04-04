@@ -1058,6 +1058,30 @@ def edit_form(form_id):
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a waste risk assessment: {str(e)}")
                 
+                # Check for Administration of Medication Evaluation Checklist form - very specific pattern matching
+                elif "administration of medication" in filename.lower().replace("_", " ") or "medication evaluation" in filename.lower() or "medication checklist" in filename.lower():
+                    current_app.logger.info("==== DETECTED MEDICATION EVALUATION CHECKLIST - USING SPECIALIZED TEMPLATE ====")
+                    # Import directly here to avoid circular imports
+                    from services.form.medication_evaluation_template import get_medication_evaluation_template
+                    
+                    # Always use the template for Medication Evaluation Checklist
+                    current_app.logger.info("Using Medication Evaluation Checklist template for ALL file formats with matching filename")
+                    form_structure = {
+                        "questions": get_medication_evaluation_template()
+                    }
+                    questions_count = len(form_structure.get('questions', []))
+                    current_app.logger.info(f"Using Medication Evaluation template with {questions_count} fields")
+                    
+                    # Print sample of fields for verification
+                    current_app.logger.info("Sample fields from Medication Evaluation Checklist template:")
+                    for i, q in enumerate(form_structure.get('questions', [])[:5]):
+                        current_app.logger.info(f"  Field {i+1}: {q.get('question_text', '')[:100]}...")
+                    
+                    use_openai_extraction = False
+                    current_app.logger.info("==== MEDICATION EVALUATION CHECKLIST TEMPLATE APPLIED SUCCESSFULLY ====")
+                    current_app.logger.info(f"Original filename: {filename}")
+                    current_app.logger.info(f"File path: {file_path}")
+                
                 # Check for Nutrition Assessment form FIRST (more specific matching than generic "nutrition")
                 elif "nutrition assessment" in filename.lower().replace("_", " ") or "nutritional assessment" in filename.lower() or "nutrition_assessment" in filename.lower():
                     current_app.logger.info("==== DETECTED NUTRITION ASSESSMENT FORM - USING SPECIALIZED TEMPLATE ====")
