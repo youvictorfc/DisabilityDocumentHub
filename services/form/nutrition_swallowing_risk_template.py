@@ -16,6 +16,84 @@ def get_nutrition_swallowing_risk_template() -> List[Dict[str, Any]]:
     """
     template = []
     
+    # Add participant details section
+    template.append({
+        "id": "date",
+        "question_text": "Date:",
+        "field_type": "date",
+        "required": True
+    })
+    
+    template.append({
+        "id": "participant_name",
+        "question_text": "Participant Details: Name:",
+        "field_type": "text",
+        "required": True
+    })
+    
+    template.append({
+        "id": "ndis_number",
+        "question_text": "NDIS Number:",
+        "field_type": "text",
+        "required": True
+    })
+    
+    template.append({
+        "id": "plan_dates",
+        "question_text": "Plan Dates:",
+        "field_type": "text",
+        "required": True
+    })
+    
+    template.append({
+        "id": "dob",
+        "question_text": "DOB:",
+        "field_type": "date",
+        "required": True
+    })
+    
+    template.append({
+        "id": "gender",
+        "question_text": "Gender:",
+        "field_type": "text",
+        "required": True
+    })
+    
+    template.append({
+        "id": "address",
+        "question_text": "Address:",
+        "field_type": "text",
+        "required": True
+    })
+    
+    template.append({
+        "id": "state",
+        "question_text": "State:",
+        "field_type": "text",
+        "required": True
+    })
+    
+    template.append({
+        "id": "email",
+        "question_text": "Email Address:",
+        "field_type": "email",
+        "required": True
+    })
+    
+    template.append({
+        "id": "phone",
+        "question_text": "Phone:",
+        "field_type": "text",
+        "required": True
+    })
+    
+    template.append({
+        "id": "preferred_contact",
+        "question_text": "Preferred Contact Person:",
+        "field_type": "text",
+        "required": True
+    })
+    
     # Add the 24 questions from the Nutrition and Swallowing Risk Checklist
     template.append({
         "id": "q_1",

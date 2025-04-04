@@ -1058,40 +1058,30 @@ def edit_form(form_id):
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a waste risk assessment: {str(e)}")
                 
-                # Check for Nutrition and Swallowing Risk Checklist
+                # Check for Nutrition and Swallowing Risk Checklist - Always use template regardless of file format
                 elif "nutrition" in filename.lower() or "swallowing" in filename.lower() or "nutrition and swallowing" in filename.lower():
-                    current_app.logger.info("Detected a Nutrition and Swallowing Risk Checklist upload, using specialized template")
+                    current_app.logger.info("==== DETECTED NUTRITION AND SWALLOWING RISK CHECKLIST - USING SPECIALIZED TEMPLATE ====")
                     # Import directly here to avoid circular imports
-                    from services.form.nutrition_swallowing_risk_template import get_nutrition_swallowing_risk_template, is_nutrition_swallowing_risk
+                    from services.form.nutrition_swallowing_risk_template import get_nutrition_swallowing_risk_template
                     
-                    # For docx files, we immediately use the template
-                    if filename.lower().endswith(".docx"):
-                        current_app.logger.info("Using nutrition and swallowing risk template for .docx file")
-                        form_structure = {
-                            "questions": get_nutrition_swallowing_risk_template()
-                        }
-                        questions_count = len(form_structure.get('questions', []))
-                        current_app.logger.info(f"Using nutrition and swallowing risk template with {questions_count} fields")
-                        use_openai_extraction = False
-                    # For other file types, we try to extract content and check if it looks like a nutrition and swallowing risk assessment
-                    else:
-                        try:
-                            # Try to extract text content if applicable
-                            from services.document.document_service import extract_text_from_file
-                            content = extract_text_from_file(file_path)
-                            if content and is_nutrition_swallowing_risk(content):
-                                current_app.logger.info("Detected nutrition and swallowing risk content, using specialized template")
-                                form_structure = {
-                                    "questions": get_nutrition_swallowing_risk_template()
-                                }
-                                questions_count = len(form_structure.get('questions', []))
-                                current_app.logger.info(f"Using nutrition and swallowing risk template with {questions_count} fields")
-                                use_openai_extraction = False
-                            else:
-                                # Not a nutrition and swallowing risk assessment or couldn't extract content, proceed to normal extraction
-                                current_app.logger.info("Content doesn't appear to be a nutrition and swallowing risk assessment, proceeding with normal extraction")
-                        except Exception as e:
-                            current_app.logger.info(f"Error checking if file is a nutrition and swallowing risk assessment: {str(e)}")
+                    # Always use the template for any file containing nutrition and swallowing keywords in the name
+                    # This provides consistent form field extraction regardless of file format
+                    current_app.logger.info("Using nutrition and swallowing risk template for ALL file formats with matching filename")
+                    form_structure = {
+                        "questions": get_nutrition_swallowing_risk_template()
+                    }
+                    questions_count = len(form_structure.get('questions', []))
+                    current_app.logger.info(f"Using nutrition and swallowing risk template with {questions_count} fields")
+                    
+                    # Print sample of fields for verification
+                    current_app.logger.info("Sample fields from Nutrition and Swallowing Risk template:")
+                    for i, q in enumerate(form_structure.get('questions', [])[:5]):
+                        current_app.logger.info(f"  Field {i+1}: {q.get('question_text', '')[:100]}...")
+                    
+                    use_openai_extraction = False
+                    current_app.logger.info("==== NUTRITION AND SWALLOWING RISK TEMPLATE APPLIED SUCCESSFULLY ====")
+                    current_app.logger.info(f"Original filename: {filename}")
+                    current_app.logger.info(f"File path: {file_path}")
                 
                 # Special direct match for Mealtime Food Safety Audit Checklist
                 elif "Mealtime Food Safety Audit Checklist" in file_path:
