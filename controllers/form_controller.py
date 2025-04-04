@@ -964,10 +964,10 @@ def edit_form(form_id):
                             current_app.logger.info(f"Error checking if file is a feedback form: {str(e)}")
                 
                 # Special case for the Root Cause Analysis Form
-                elif "root cause" in filename.lower() or "rca" in filename.lower():
+                elif "root cause" in filename.lower() or "analysis" in filename.lower() or "rca" in filename.lower():
                     current_app.logger.info("Detected a Root Cause Analysis Form upload, using specialized template")
                     # Import directly here to avoid circular imports
-                    from services.form.root_cause_analysis_template import get_root_cause_analysis_template, is_root_cause_analysis_form
+                    from services.form.root_cause_analysis_template import get_root_cause_analysis_template, is_root_cause_analysis
                     
                     # For docx files, we immediately use the template
                     if filename.lower().endswith(".docx"):
@@ -984,7 +984,7 @@ def edit_form(form_id):
                             # Try to extract text content if applicable
                             from services.document.document_service import extract_text_from_file
                             content = extract_text_from_file(file_path)
-                            if content and is_root_cause_analysis_form(content):
+                            if content and is_root_cause_analysis(content):
                                 current_app.logger.info("Detected root cause analysis form content, using specialized template")
                                 form_structure = {
                                     "questions": get_root_cause_analysis_template()
