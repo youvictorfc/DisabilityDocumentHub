@@ -1103,6 +1103,25 @@ def edit_form(form_id):
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a nutrition and swallowing risk assessment: {str(e)}")
                 
+                # Check for Mealtime Food Safety Audit Checklist - this must come before the Food Diary check
+                elif "mealtime" in filename.lower() or "food safety" in filename.lower() or "audit checklist" in filename.lower():
+                    current_app.logger.info("Detected a Mealtime Food Safety Audit Checklist upload, using specialized template")
+                    # Always use the specialized template for mealtime food safety audit forms, regardless of file type
+                    from services.form.mealtime_safety_audit_template import get_mealtime_safety_audit_template
+                    
+                    current_app.logger.info("========== USING MEALTIME FOOD SAFETY AUDIT TEMPLATE ==========")
+                    form_structure = {
+                        "questions": get_mealtime_safety_audit_template()
+                    }
+                    questions_count = len(form_structure.get('questions', []))
+                    current_app.logger.info(f"Using mealtime food safety audit template with {questions_count} fields")
+                    
+                    # Print out the first few fields to confirm template is working
+                    for i, q in enumerate(form_structure.get('questions', [])[:3]):
+                        current_app.logger.info(f"Sample field {i+1}: {q.get('question_text', '')[:50]}")
+                    
+                    use_openai_extraction = False
+                
                 # Check for Food Diary Form - more specific pattern matching for reliable detection
                 elif "food diary" in filename.lower() or (("food" in filename.lower() or "meal" in filename.lower()) and ("diary" in filename.lower() or "log" in filename.lower())):
                     current_app.logger.info("Detected a Food Diary Form upload, using specialized template")
