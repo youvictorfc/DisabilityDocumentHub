@@ -1059,7 +1059,7 @@ def edit_form(form_id):
                             current_app.logger.info(f"Error checking if file is a waste risk assessment: {str(e)}")
                 
                 # Check for Nutrition Assessment form FIRST (more specific matching than generic "nutrition")
-                elif "nutrition assessment" in filename.lower() or "nutritional assessment" in filename.lower():
+                elif "nutrition assessment" in filename.lower().replace("_", " ") or "nutritional assessment" in filename.lower() or "nutrition_assessment" in filename.lower():
                     current_app.logger.info("==== DETECTED NUTRITION ASSESSMENT FORM - USING SPECIALIZED TEMPLATE ====")
                     # Import directly here to avoid circular imports
                     from services.form.nutrition_assessment_template import get_nutrition_assessment_template
@@ -1083,7 +1083,7 @@ def edit_form(form_id):
                     current_app.logger.info(f"File path: {file_path}")
                 
                 # Check for Nutrition and Swallowing Risk Checklist - Always use template regardless of file format
-                elif "nutrition and swallowing" in filename.lower() or "swallowing risk" in filename.lower() or "nutrition checklist" in filename.lower():
+                elif "nutrition and swallowing" in filename.lower().replace("_", " ") or "swallowing risk" in filename.lower() or "nutrition checklist" in filename.lower() or "nutrition_and_swallowing" in filename.lower():
                     current_app.logger.info("==== DETECTED NUTRITION AND SWALLOWING RISK CHECKLIST - USING SPECIALIZED TEMPLATE ====")
                     # Import directly here to avoid circular imports
                     from services.form.nutrition_swallowing_risk_template import get_nutrition_swallowing_risk_template
