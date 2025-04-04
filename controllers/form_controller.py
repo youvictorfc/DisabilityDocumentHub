@@ -1103,7 +1103,28 @@ def edit_form(form_id):
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a nutrition and swallowing risk assessment: {str(e)}")
                 
-                # Check for Mealtime Food Safety Audit Checklist - this must come before the Food Diary check
+                # Special direct match for Mealtime Food Safety Audit Checklist
+                elif "Mealtime Food Safety Audit Checklist" in file_path:
+                    current_app.logger.info("===== EXACT MATCH FOR Mealtime Food Safety Audit Checklist =====")
+                    # Always use the specialized template for this exact file
+                    from services.form.mealtime_safety_audit_template import get_mealtime_safety_audit_template
+                    
+                    current_app.logger.info("========== USING MEALTIME FOOD SAFETY AUDIT TEMPLATE ==========")
+                    form_structure = {
+                        "questions": get_mealtime_safety_audit_template()
+                    }
+                    questions_count = len(form_structure.get('questions', []))
+                    current_app.logger.info(f"Using mealtime food safety audit template with {questions_count} fields")
+                    current_app.logger.info(f"File path: {file_path}")
+                    current_app.logger.info(f"Filename: {filename}")
+                    
+                    # Print out the first few fields to confirm template is working
+                    for i, q in enumerate(form_structure.get('questions', [])[:3]):
+                        current_app.logger.info(f"Sample field {i+1}: {q.get('question_text', '')[:50]}")
+                    
+                    use_openai_extraction = False
+                
+                # More general match for Mealtime Food Safety Audit Checklist
                 elif "mealtime" in filename.lower() or "food safety" in filename.lower() or "audit checklist" in filename.lower():
                     current_app.logger.info("Detected a Mealtime Food Safety Audit Checklist upload, using specialized template")
                     # Always use the specialized template for mealtime food safety audit forms, regardless of file type
@@ -1140,6 +1161,51 @@ def edit_form(form_id):
                         current_app.logger.info(f"Sample field {i+1}: {q.get('question_text', '')[:50]}")
                     
                     use_openai_extraction = False
+
+                # Check for Root Cause Analysis Form
+                elif "root cause" in filename.lower() or "analysis" in filename.lower() or "rca" in filename.lower():
+                    current_app.logger.info("Detected a Root Cause Analysis Form upload, using specialized template")
+                    # Always use the specialized template for Root Cause Analysis forms, regardless of file type
+                    from services.form.root_cause_analysis_template import get_root_cause_analysis_template, is_root_cause_analysis
+                    
+                    # For docx files, we immediately use the template
+                    if filename.lower().endswith(".docx"):
+                        current_app.logger.info("Using Root Cause Analysis template for .docx file")
+                        form_structure = {
+                            "questions": get_root_cause_analysis_template()
+                        }
+                        questions_count = len(form_structure.get('questions', []))
+                        current_app.logger.info(f"Using Root Cause Analysis template with {questions_count} fields")
+                        
+                        # Print out the first few fields to confirm template is working
+                        for i, q in enumerate(form_structure.get('questions', [])[:3]):
+                            current_app.logger.info(f"Sample field {i+1}: {q.get('question_text', '')[:50]}")
+                        
+                        use_openai_extraction = False
+                    # For other file types, try to extract content and check if it looks like a root cause analysis form
+                    else:
+                        try:
+                            # Try to extract text content if applicable
+                            from services.document.document_service import extract_text_from_file
+                            content = extract_text_from_file(file_path)
+                            if content and is_root_cause_analysis(content):
+                                current_app.logger.info("Detected Root Cause Analysis content, using specialized template")
+                                form_structure = {
+                                    "questions": get_root_cause_analysis_template()
+                                }
+                                questions_count = len(form_structure.get('questions', []))
+                                current_app.logger.info(f"Using Root Cause Analysis template with {questions_count} fields")
+                                
+                                # Print out the first few fields to confirm template is working
+                                for i, q in enumerate(form_structure.get('questions', [])[:3]):
+                                    current_app.logger.info(f"Sample field {i+1}: {q.get('question_text', '')[:50]}")
+                                
+                                use_openai_extraction = False
+                            else:
+                                # Not a root cause analysis form or couldn't extract content, proceed to normal extraction
+                                current_app.logger.info("Content doesn't appear to be a Root Cause Analysis form, proceeding with normal extraction")
+                        except Exception as e:
+                            current_app.logger.info(f"Error checking if file is a root cause analysis form: {str(e)}")
                 
                 # Use OpenAI extraction if we haven't already used a template
                 if use_openai_extraction:
