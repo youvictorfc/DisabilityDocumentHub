@@ -1103,6 +1103,41 @@ def edit_form(form_id):
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a nutrition and swallowing risk assessment: {str(e)}")
                 
+                # Check for Food Diary Form
+                elif "food" in filename.lower() or "diary" in filename.lower() or "food diary" in filename.lower():
+                    current_app.logger.info("Detected a Food Diary Form upload, using specialized template")
+                    # Import directly here to avoid circular imports
+                    from services.form.food_diary_template import get_food_diary_template, is_food_diary
+                    
+                    # For docx files, we immediately use the template
+                    if filename.lower().endswith(".docx"):
+                        current_app.logger.info("Using food diary template for .docx file")
+                        form_structure = {
+                            "questions": get_food_diary_template()
+                        }
+                        questions_count = len(form_structure.get('questions', []))
+                        current_app.logger.info(f"Using food diary template with {questions_count} fields")
+                        use_openai_extraction = False
+                    # For other file types, we try to extract content and check if it looks like a food diary
+                    else:
+                        try:
+                            # Try to extract text content if applicable
+                            from services.document.document_service import extract_text_from_file
+                            content = extract_text_from_file(file_path)
+                            if content and is_food_diary(content):
+                                current_app.logger.info("Detected food diary content, using specialized template")
+                                form_structure = {
+                                    "questions": get_food_diary_template()
+                                }
+                                questions_count = len(form_structure.get('questions', []))
+                                current_app.logger.info(f"Using food diary template with {questions_count} fields")
+                                use_openai_extraction = False
+                            else:
+                                # Not a food diary or couldn't extract content, proceed to normal extraction
+                                current_app.logger.info("Content doesn't appear to be a food diary, proceeding with normal extraction")
+                        except Exception as e:
+                            current_app.logger.info(f"Error checking if file is a food diary: {str(e)}")
+                
                 # Use OpenAI extraction if we haven't already used a template
                 if use_openai_extraction:
                     # Extract form structure using OpenAI - preserve EXACT questions and order
