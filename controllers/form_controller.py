@@ -963,40 +963,30 @@ def edit_form(form_id):
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a feedback form: {str(e)}")
                 
-                # Special case for the Root Cause Analysis Form
+                # Special case for the Root Cause Analysis Form - Always use template regardless of file format
                 elif "root cause" in filename.lower() or "analysis" in filename.lower() or "rca" in filename.lower():
-                    current_app.logger.info("Detected a Root Cause Analysis Form upload, using specialized template")
+                    current_app.logger.info("==== DETECTED ROOT CAUSE ANALYSIS FORM - USING SPECIALIZED TEMPLATE ====")
                     # Import directly here to avoid circular imports
-                    from services.form.root_cause_analysis_template import get_root_cause_analysis_template, is_root_cause_analysis
+                    from services.form.root_cause_analysis_template import get_root_cause_analysis_template
                     
-                    # For docx files, we immediately use the template
-                    if filename.lower().endswith(".docx"):
-                        current_app.logger.info("Using root cause analysis template for .docx file")
-                        form_structure = {
-                            "questions": get_root_cause_analysis_template()
-                        }
-                        questions_count = len(form_structure.get('questions', []))
-                        current_app.logger.info(f"Using root cause analysis template with {questions_count} fields")
-                        use_openai_extraction = False
-                    # For other file types, we try to extract content and check if it looks like a root cause analysis form
-                    else:
-                        try:
-                            # Try to extract text content if applicable
-                            from services.document.document_service import extract_text_from_file
-                            content = extract_text_from_file(file_path)
-                            if content and is_root_cause_analysis(content):
-                                current_app.logger.info("Detected root cause analysis form content, using specialized template")
-                                form_structure = {
-                                    "questions": get_root_cause_analysis_template()
-                                }
-                                questions_count = len(form_structure.get('questions', []))
-                                current_app.logger.info(f"Using root cause analysis template with {questions_count} fields")
-                                use_openai_extraction = False
-                            else:
-                                # Not a root cause analysis form or couldn't extract content, proceed to normal extraction
-                                current_app.logger.info("Content doesn't appear to be a root cause analysis form, proceeding with normal extraction")
-                        except Exception as e:
-                            current_app.logger.info(f"Error checking if file is a root cause analysis form: {str(e)}")
+                    # Always use the template for any file containing root cause analysis keywords in the name
+                    # This provides consistent form field extraction regardless of file format
+                    current_app.logger.info("Using root cause analysis template for ALL file formats with matching filename")
+                    form_structure = {
+                        "questions": get_root_cause_analysis_template()
+                    }
+                    questions_count = len(form_structure.get('questions', []))
+                    current_app.logger.info(f"Using root cause analysis template with {questions_count} fields")
+                    
+                    # Print sample of fields for verification
+                    current_app.logger.info("Sample fields from Root Cause Analysis template:")
+                    for i, q in enumerate(form_structure.get('questions', [])[:5]):
+                        current_app.logger.info(f"  Field {i+1}: {q.get('question_text', '')[:100]}...")
+                    
+                    use_openai_extraction = False
+                    current_app.logger.info("==== ROOT CAUSE ANALYSIS TEMPLATE APPLIED SUCCESSFULLY ====")
+                    current_app.logger.info(f"Original filename: {filename}")
+                    current_app.logger.info(f"File path: {file_path}")
                 
                 # Check for Vehicle Safety Check Sheet
                 if "vehicle" in filename.lower() or "safety check" in filename.lower() or "vehicle safety" in filename.lower():
@@ -1162,50 +1152,7 @@ def edit_form(form_id):
                     
                     use_openai_extraction = False
 
-                # Check for Root Cause Analysis Form
-                elif "root cause" in filename.lower() or "analysis" in filename.lower() or "rca" in filename.lower():
-                    current_app.logger.info("Detected a Root Cause Analysis Form upload, using specialized template")
-                    # Always use the specialized template for Root Cause Analysis forms, regardless of file type
-                    from services.form.root_cause_analysis_template import get_root_cause_analysis_template, is_root_cause_analysis
-                    
-                    # For docx files, we immediately use the template
-                    if filename.lower().endswith(".docx"):
-                        current_app.logger.info("Using Root Cause Analysis template for .docx file")
-                        form_structure = {
-                            "questions": get_root_cause_analysis_template()
-                        }
-                        questions_count = len(form_structure.get('questions', []))
-                        current_app.logger.info(f"Using Root Cause Analysis template with {questions_count} fields")
-                        
-                        # Print out the first few fields to confirm template is working
-                        for i, q in enumerate(form_structure.get('questions', [])[:3]):
-                            current_app.logger.info(f"Sample field {i+1}: {q.get('question_text', '')[:50]}")
-                        
-                        use_openai_extraction = False
-                    # For other file types, try to extract content and check if it looks like a root cause analysis form
-                    else:
-                        try:
-                            # Try to extract text content if applicable
-                            from services.document.document_service import extract_text_from_file
-                            content = extract_text_from_file(file_path)
-                            if content and is_root_cause_analysis(content):
-                                current_app.logger.info("Detected Root Cause Analysis content, using specialized template")
-                                form_structure = {
-                                    "questions": get_root_cause_analysis_template()
-                                }
-                                questions_count = len(form_structure.get('questions', []))
-                                current_app.logger.info(f"Using Root Cause Analysis template with {questions_count} fields")
-                                
-                                # Print out the first few fields to confirm template is working
-                                for i, q in enumerate(form_structure.get('questions', [])[:3]):
-                                    current_app.logger.info(f"Sample field {i+1}: {q.get('question_text', '')[:50]}")
-                                
-                                use_openai_extraction = False
-                            else:
-                                # Not a root cause analysis form or couldn't extract content, proceed to normal extraction
-                                current_app.logger.info("Content doesn't appear to be a Root Cause Analysis form, proceeding with normal extraction")
-                        except Exception as e:
-                            current_app.logger.info(f"Error checking if file is a root cause analysis form: {str(e)}")
+                # No duplicate section needed - Root Cause Analysis Form is already handled earlier in the code
                 
                 # Use OpenAI extraction if we haven't already used a template
                 if use_openai_extraction:
