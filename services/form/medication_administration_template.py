@@ -548,23 +548,49 @@ def is_medication_administration_form(file_path_or_content: str) -> bool:
         content = ""
         
         # Check if the input is a file path
-        if os.path.exists(file_path_or_content):
-            # Assume it's a text file or already content
-            with open(file_path_or_content, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
+        if isinstance(file_path_or_content, str) and os.path.exists(file_path_or_content):
+            # Check if it's a docx file
+            if file_path_or_content.lower().endswith('.docx'):
+                try:
+                    # Try to use docx module to extract content
+                    import docx
+                    doc = docx.Document(file_path_or_content)
+                    content = '\n'.join([para.text for para in doc.paragraphs])
+                except Exception as e:
+                    print(f"Error extracting docx content: {e}")
+                    # Fallback to raw content
+                    try:
+                        with open(file_path_or_content, 'rb') as f:
+                            raw_bytes = f.read()
+                            content = raw_bytes.decode('utf-8', errors='ignore')
+                    except Exception:
+                        pass
+            else:
+                # Assume it's a text file or other readable format
+                try:
+                    with open(file_path_or_content, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                except Exception:
+                    # Try binary mode if text mode fails
+                    try:
+                        with open(file_path_or_content, 'rb') as f:
+                            raw_bytes = f.read()
+                            content = raw_bytes.decode('utf-8', errors='ignore')
+                    except Exception:
+                        pass
         else:
             # Assume it's already content
-            content = file_path_or_content
+            content = str(file_path_or_content)
             
         # Define keywords and patterns that indicate this is a medication administration form
         keywords = [
-            r"medication\s+administration\s+form",
-            r"participant\s+name",
+            r"medication\s+administration",
+            r"participant",
             r"date\s+of\s+birth",
             r"support\s+worker",
             r"staff\s+signature",
             r"escalation\s+mechanism",
-            r"time/s\s+of\s+administration",
+            r"administration",
             r"name\s+of\s+medication",
             r"route",
             r"dosage",
@@ -577,10 +603,13 @@ def is_medication_administration_form(file_path_or_content: str) -> bool:
         for keyword in keywords:
             if re.search(keyword, content.lower()):
                 score += 1
+                print(f"Matched keyword: {keyword}")
                 
         # If 4 or more keywords match, consider it a medication administration form
+        print(f"Medication Form Detection Score: {score} out of {len(keywords)}")
         return score >= 4
         
-    except Exception:
+    except Exception as e:
         # If there's any error in processing, default to False
+        print(f"Error in is_medication_administration_form: {e}")
         return False

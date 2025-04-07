@@ -1058,8 +1058,43 @@ def edit_form(form_id):
                         except Exception as e:
                             current_app.logger.info(f"Error checking if file is a waste risk assessment: {str(e)}")
                 
-                # Check for Medication Administration Form - very specific pattern matching
-                elif "medication administration" in filename.lower().replace("_", " ") or "medication administration form" in filename.lower():
+                # Initialize use_med_admin_template before we use it
+                use_med_admin_template = False
+                
+                # Check for Medication Administration Form - very specific pattern matching based on content
+                if "medication administration" in filename.lower().replace("_", " ") or "medication administration form" in filename.lower() or filename.lower() == "medication_administration_form.docx":
+                    # First try to check by filename pattern
+                    current_app.logger.info(f"Detected Medication Administration Form by filename: {filename}")
+                    use_med_admin_template = True
+                
+                # If filename doesn't match, try to check content
+                if not use_med_admin_template:
+                    try:
+                        # Import needed module here to avoid circular imports
+                        from services.form.medication_administration_template import is_medication_administration_form
+                        
+                        # Try to extract text content from the file for analysis
+                        try:
+                            from services.document.document_service import extract_text_from_file
+                            file_content = extract_text_from_file(file_path)
+                            
+                            # Check if the file content matches a medication administration form
+                            if is_medication_administration_form(file_content):
+                                current_app.logger.info("==== DETECTED MEDICATION ADMINISTRATION FORM BY CONTENT ANALYSIS ====")
+                                use_med_admin_template = True
+                        except Exception as extract_error:
+                            current_app.logger.info(f"Error extracting text from file for medication form detection: {str(extract_error)}")
+                            
+                            # Fallback: Try to check the file path directly
+                            if is_medication_administration_form(file_path):
+                                current_app.logger.info("==== DETECTED MEDICATION ADMINISTRATION FORM BY DIRECT FILE CHECK ====")
+                                use_med_admin_template = True
+                    
+                    except Exception as e:
+                        current_app.logger.info(f"Error checking if file is a medication administration form: {str(e)}")
+                
+                # Apply medication administration template if detected
+                if use_med_admin_template:
                     current_app.logger.info("==== DETECTED MEDICATION ADMINISTRATION FORM - USING SPECIALIZED TEMPLATE ====")
                     # Import directly here to avoid circular imports
                     from services.form.medication_administration_template import get_medication_administration_template
