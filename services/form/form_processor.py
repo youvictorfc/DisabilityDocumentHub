@@ -23,6 +23,7 @@ from openai import OpenAI
 from services.form.incident_form_template import get_incident_form_template, is_incident_form
 from services.form.audit_checklist_template import get_access_audit_checklist_template, is_access_audit_checklist
 from services.form.advocate_form_template import get_advocate_form_template, is_advocate_form
+from services.form.prn_care_plan_template import extract_prn_care_plan_fields, is_prn_care_plan_form
 
 # JSON Schema for question validation
 FORM_QUESTION_SCHEMA = {
@@ -936,6 +937,25 @@ Your validation must be exhaustive, identifying ANY field that exists in the ori
                     "issues": []
                 }
             }
+        
+        if is_prn_care_plan_form(file_path):
+            current_app.logger.info("Detected PRN Care Plan form (filename match), using specialized template")
+            questions_structure = extract_prn_care_plan_fields("")
+            
+            # Create the form structure with the specialized template
+            form_structure = {
+                "title": form_name,
+                "description": description or "PRN Care Plan",
+                "questions": questions_structure["questions"]
+            }
+            
+            return {
+                "structure": form_structure,
+                "validation": {
+                    "complete": True,
+                    "issues": []
+                }
+            }
             
         if is_advocate_form(file_path):
             current_app.logger.info("Detected Act as an Advocate Form, using specialized template")
@@ -970,6 +990,26 @@ Your validation must be exhaustive, identifying ANY field that exists in the ori
                     "title": form_name,
                     "description": description or "Incident Form",
                     "questions": questions
+                }
+                
+                return {
+                    "structure": form_structure,
+                    "validation": {
+                        "complete": True,
+                        "issues": []
+                    }
+                }
+            
+            # Check if this looks like a PRN Care Plan form based on extracted text
+            if is_prn_care_plan_form(file_path, document_text):
+                current_app.logger.info("Detected PRN Care Plan form, using specialized template")
+                questions_structure = extract_prn_care_plan_fields(document_text)
+                
+                # Create the form structure with the specialized template
+                form_structure = {
+                    "title": form_name,
+                    "description": description or "PRN Care Plan",
+                    "questions": questions_structure["questions"]
                 }
                 
                 return {
