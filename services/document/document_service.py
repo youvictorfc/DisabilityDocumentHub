@@ -7,6 +7,10 @@ from app import db
 from models import Document, DocumentChunk
 from services.document.vector_service import add_to_vector_db
 from services.ai.openai_service import get_openai_client, encode_image_to_base64
+from services.document.markdown_converter import MarkdownConverter
+
+# Initialize markdown converter as a singleton
+markdown_converter = MarkdownConverter()
 
 def is_image_file(file_path):
     """Check if a file is an image based on its extension or MIME type"""
@@ -70,9 +74,28 @@ def extract_text_from_image(image_path):
 def extract_text_from_file(file_path):
     """
     Extract text content from a document file based on its type.
-    Supports PDFs, text files, images, and docx files.
+    Supports various file formats through MarkItDown conversion to markdown,
+    with fallbacks to traditional extraction methods if needed.
+    
+    This function first attempts to use the MarkItDown converter to get a markdown
+    representation that preserves document structure, which is ideal for form extraction.
+    If that fails, it falls back to traditional extraction methods.
     """
     try:
+        # First, try using MarkItDown to convert the document to markdown
+        # This should work for most document types and preserve structure
+        current_app.logger.info(f"Attempting to convert {file_path} to markdown using MarkItDown")
+        
+        markdown_result = markdown_converter.convert_to_markdown(file_path)
+        if markdown_result["success"] and markdown_result["markdown"]:
+            markdown_content = markdown_result["markdown"]
+            current_app.logger.info(f"Successfully converted {file_path} to markdown (length: {len(markdown_content)} chars)")
+            current_app.logger.debug(f"Markdown content preview: {markdown_content[:500]}")
+            return markdown_content
+        else:
+            current_app.logger.warning(f"MarkItDown conversion failed: {markdown_result.get('error')}. Falling back to traditional extraction.")
+        
+        # If MarkItDown fails, fall back to traditional extraction methods
         # Check if it's an image file
         if is_image_file(file_path):
             current_app.logger.info(f"Processing file as image: {file_path}")

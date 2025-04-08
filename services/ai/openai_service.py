@@ -177,6 +177,154 @@ def verify_field_extraction_completeness(image_path, base64_image, extracted_fie
             "missed_questions": []
         }
 
+def extract_form_fields_from_markdown(markdown_content, file_path=None):
+    """
+    Extract form fields from markdown content generated from a document.
+    This function leverages the structured markdown format to more accurately
+    identify form fields, questions, and their relationships.
+    
+    Args:
+        markdown_content: The markdown representation of the document
+        file_path: Optional original file path for logging purposes
+        
+    Returns:
+        dict: Form structure with questions array
+    """
+    try:
+        file_info = f" from {file_path}" if file_path else ""
+        current_app.logger.info(f"Extracting form fields from markdown content{file_info}")
+        
+        # Get the OpenAI client
+        client = get_openai_client()
+        
+        # Extract form fields from markdown content
+        current_app.logger.info("Performing form field extraction from markdown structure")
+        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+        # do not change this unless explicitly requested by the user
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a form field extraction specialist for markdown documents. "
+                        "Your task is to extract ALL form fields from markdown content with high accuracy. "
+                        "Markdown structure preserves the document's original formatting, making it easier to identify fields. "
+                        "\n\nGUIDELINES:\n"
+                        "1. Preserve the EXACT question text as shown in the markdown\n"
+                        "2. Pay special attention to markdown-specific formats:\n"
+                        "   - Headers (marked with #, ##, etc.) are often section titles\n"
+                        "   - Bullet points (marked with *, -, or +) may be separate questions\n"
+                        "   - Tables (defined with | symbols) often contain form fields in each row\n"
+                        "   - Code blocks (marked with ```) may contain structured content\n"
+                        "3. Capture ALL form fields, including checkboxes, radio buttons, and input fields\n"
+                        "4. For tables, extract each row as a separate question\n"
+                        "5. Maintain the SAME ORDER of questions as they appear in the document\n"
+                        "6. Include ALL section headings (# headers) as 'header' field type\n"
+                        "7. DO NOT INVENT FIELDS that aren't in the markdown\n"
+                        "8. DO NOT MAKE UP QUESTIONS or modify the text\n"
+                        "9. If you find checkbox syntax like '- [ ]' or '- [x]', identify these as checkbox fields\n"
+                        "10. Tables often represent form fields with multiple columns, analyze them carefully\n"
+                        "11. When extracting tables, the first column is usually the question_text\n"
+                        "12. For rows with cells containing YES/NO/NA options, interpret as radio button fields"
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Extract ALL form fields from this markdown content. The markdown preserves "
+                        "the structure of the original document. Extract each field as a separate question item.\n\n"
+                        "Provide your response as valid JSON with a `questions` array. Each question should include:\n"
+                        "- `id`: A unique identifier\n"
+                        "- `question_text`: The EXACT text of the question/field label\n"
+                        "- `field_type`: One of 'text', 'textarea', 'checkbox', 'radio', 'select', 'date', 'header'\n"
+                        "- `options`: Array of options if applicable (for checkbox, radio, select)\n"
+                        "- `required`: Boolean indicating if the field appears to be required\n\n"
+                        "For tables, each row should be a separate question. For headings (#, ##, etc.), "
+                        "use field_type 'header'. Maintain the EXACT question order.\n\n"
+                        f"Here is the markdown content:\n\n{markdown_content}"
+                    )
+                }
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1  # Lower temperature for more deterministic extraction
+        )
+        
+        initial_extraction = json.loads(response.choices[0].message.content)
+        current_app.logger.info(f"Extracted {len(initial_extraction.get('questions', []))} questions from markdown")
+        
+        # Verify completeness with a second pass for quality assurance
+        current_app.logger.info("Performing verification pass to ensure all fields are captured")
+        verification_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a quality assurance specialist for form field extraction from markdown. "
+                        "Your task is to verify that ALL form fields have been correctly identified and "
+                        "that NOTHING was missed from the markdown content."
+                        "\n\nFocus on identifying any missing fields or items that should have been extracted "
+                        "but weren't. Analyze the markdown carefully and compare with the extracted list."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Here is a list of form fields that were extracted from markdown content. "
+                        "Please examine the markdown carefully and verify if ANY fields or questions are missing from this list. "
+                        "Pay special attention to:\n"
+                        "- Markdown headers (#, ##, etc.) that should be section titles\n"
+                        "- List items (*, -, +) that might be form fields\n"
+                        "- Table rows that should be questions\n"
+                        "- Checkbox syntax (- [ ], - [x])\n"
+                        "- Form-like structure such as questions ending with a colon\n\n"
+                        f"Extracted fields (verify against the markdown):\n{json.dumps(initial_extraction, indent=2)}\n\n"
+                        "Respond with a JSON object that includes:\n"
+                        "1. `missed_fields`: Array of any fields that were completely missed\n"
+                        "2. `completeness_assessment`: Your assessment of whether any questions found in the markdown were not in the extracted list.\n\n"
+                        f"Here is the markdown content to verify against:\n\n{markdown_content[:10000]}" +
+                        (f"\n\n[Content truncated due to length. This is only the first portion of the markdown.]" if len(markdown_content) > 10000 else "")
+                    )
+                }
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1
+        )
+        
+        verification_results = json.loads(verification_response.choices[0].message.content)
+        missed_fields = verification_results.get('missed_fields', [])
+        completeness_assessment = verification_results.get('completeness_assessment', '')
+        
+        # Check if verification identified any missing fields
+        if missed_fields and len(missed_fields) > 0:
+            current_app.logger.warning(f"Verification identified {len(missed_fields)} missed fields")
+            # Add the missed fields to our extraction
+            for field in missed_fields:
+                # Generate a unique ID if not provided
+                if 'id' not in field and 'question_text' in field:
+                    field['id'] = f"question_{len(initial_extraction.get('questions', [])) + 1}"
+                
+                # Add to our questions list
+                initial_extraction.setdefault('questions', []).append(field)
+            
+            current_app.logger.info(f"Updated extraction now has {len(initial_extraction.get('questions', []))} questions")
+        else:
+            current_app.logger.info("Verification confirmed all fields were extracted correctly")
+        
+        # Log completeness assessment
+        if 'incomplete' in completeness_assessment.lower() or 'missing' in completeness_assessment.lower():
+            current_app.logger.warning(f"Completeness assessment: {completeness_assessment}")
+        else:
+            current_app.logger.info(f"Completeness assessment: {completeness_assessment}")
+        
+        # Return the final extraction with any missed fields added
+        return initial_extraction
+    
+    except Exception as e:
+        current_app.logger.error(f"Error extracting fields from markdown: {str(e)}")
+        raise Exception(f"Failed to extract form fields from markdown: {str(e)}")
+
 def extract_form_fields_from_image(image_path):
     """Extract form fields from an image using GPT-4o multimodal capabilities with enhanced handling for challenging images"""
     client = get_openai_client()
@@ -572,7 +720,8 @@ def extract_form_fields_from_image(image_path):
 def parse_form_document(file_path):
     """
     Parse a form document and extract a structured representation of questions.
-    Handles PDFs, text files, images, and docx files.
+    Handles PDFs, text files, images, and docx files using MarkItDown for enhanced
+    document structure preservation when possible.
     """
     try:
         file_path_str = str(file_path)
@@ -583,6 +732,34 @@ def parse_form_document(file_path):
             current_app.logger.info(f"Processing file as image: {file_path_str}")
             return extract_form_fields_from_image(file_path_str)
         
+        # First try to convert to markdown using MarkItDown
+        # This preserves document structure better than traditional extraction
+        try:
+            from services.document.markdown_converter import markdown_converter
+            
+            current_app.logger.info(f"Attempting to convert {file_path_str} to markdown for enhanced structure preservation")
+            markdown_result = markdown_converter.convert_to_markdown(file_path_str)
+            
+            if markdown_result["success"] and markdown_result["markdown"]:
+                markdown_content = markdown_result["markdown"]
+                current_app.logger.info(f"Successfully converted to markdown (length: {len(markdown_content)} chars)")
+                current_app.logger.debug(f"Markdown content preview: {markdown_content[:300]}...")
+                
+                # Use the markdown content for AI form field extraction
+                file_content = markdown_content
+                
+                # For debugging purposes
+                current_app.logger.info("Using markdown representation for form extraction")
+                current_app.logger.debug(f"First 1000 chars of markdown content: {file_content[:1000]}")
+                
+                # Skip the traditional extraction methods
+                return extract_form_fields_from_markdown(file_content, file_path_str)
+            else:
+                current_app.logger.warning(f"MarkItDown conversion failed: {markdown_result.get('error')}. Falling back to traditional extraction.")
+        except Exception as md_error:
+            current_app.logger.warning(f"Error converting to markdown: {str(md_error)}. Falling back to traditional extraction.")
+        
+        # If markdown conversion fails, fall back to traditional extraction methods
         # Extract text from the file based on type
         if file_path_str.endswith('.pdf'):
             import PyPDF2

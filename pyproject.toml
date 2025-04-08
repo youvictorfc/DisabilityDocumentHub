@@ -23,4 +23,5 @@ dependencies = [
     "trafilatura>=2.0.0",
     "jsonschema>=4.23.0",
     "docx>=0.2.4",
+    "markitdown[all]>=0.1.1",
 ]
